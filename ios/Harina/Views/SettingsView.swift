@@ -41,7 +41,10 @@ struct SettingsView: View {
             }
             Section("categories.title") {
                 ForEach(categories.sorted { $0.displayName < $1.displayName }) { c in
-                    Text(c.displayName)
+                    HStack(spacing: 12) {
+                        Tile(look: Looks.of(c), size: 32)
+                        Text(c.displayName)
+                    }
                 }
                 .onDelete { idx in
                     let sorted = categories.sorted { $0.displayName < $1.displayName }
@@ -61,9 +64,12 @@ struct SettingsView: View {
             }
             Section {
                 ForEach(accounts) { a in
-                    VStack(alignment: .leading) {
-                        Text(a.name)
-                        if let card = a.card { Text(card).font(.caption).foregroundStyle(.secondary) }
+                    HStack(spacing: 12) {
+                        IconTile(systemName: "creditcard.fill", colors: [Color(hex: 0x4C8DFF), Color(hex: 0x6A5CFF)], size: 32)
+                        VStack(alignment: .leading) {
+                            Text(a.name)
+                            if let card = a.card { Text(card).font(.caption).foregroundStyle(.secondary) }
+                        }
                     }
                 }
                 .onDelete { idx in
@@ -96,6 +102,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("tab.settings")
+        .tint(Color(hex: 0xFF4F6D))
     }
 
     private func saveAndSync() {

@@ -3,7 +3,7 @@ import HarinaKit
 import SwiftData
 import SwiftUI
 
-/// New or existing movement. Built for speed: amount first, keyboard up, one tap to save.
+/// New or existing movement. Built for speed: amount first, keyboard up, one tap per choice.
 struct MovementForm: View {
     let movement: Movement?
     @Environment(\.modelContext) private var context
@@ -23,56 +23,149 @@ struct MovementForm: View {
     @State private var note = ""
     @State private var invalid = false
     @State private var saved = false
+    @State private var confirmDelete = false
     @FocusState private var amountFocused: Bool
 
+    private let columns = [GridItem(.adaptive(minimum: 82), spacing: 8)]
+
     var body: some View {
-        Form {
-            Picker("form.kind", selection: $kind) {
-                Text("form.expense").tag("expense")
-                Text("form.income").tag("income")
-            }
-            .pickerStyle(.segmented)
-            HStack {
-                TextField("form.amount", text: $amount)
-                    .keyboardType(.decimalPad)
-                    .font(.largeTitle)
-                    .focused($amountFocused)
-                Picker("form.currency", selection: $currency) {
-                    Text(verbatim: "CRC").tag("CRC")
-                    Text(verbatim: "USD").tag("USD")
+        let suggestion = categoryId == nil ? Suggestion.category(for: merchant, in: movements, categories: categories) : nil
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Picker("form.kind", selection: $kind) {
+                    Text("form.expense").tag("expense")
+                    Text("form.income").tag("income")
                 }
-                .labelsHidden()
-            }
-            if let raw = movement?.rawAmount { Text("review.rawAmount \(raw)").font(.caption).foregroundStyle(.secondary) }
-            TextField("form.merchant", text: $merchant)
-            Picker("form.category", selection: $categoryId) {
-                Text("category.none").tag(String?.none)
-                ForEach(categories.sorted { $0.displayName < $1.displayName }) { Text($0.displayName).tag(Optional($0.id)) }
-            }
-            if categoryId == nil, let s = Suggestion.category(for: merchant, in: movements, categories: categories) {
-                Button("form.suggested \(s.displayName)") { categoryId = s.id }
-            }
-            Picker("form.account", selection: $accountId) {
-                Text("form.noAccount").tag(String?.none)
-                ForEach(accounts) { Text($0.name).tag(Optional($0.id)) }
-            }
-            DatePicker("form.date", selection: $date)
-            TextField("form.note", text: $note)
-            Section {
-                Button("form.save", action: save).bold()
-                if movement != nil {
-                    Button("form.delete", role: .destructive) {
-                        movement?.deleted = true
-                        movement?.touch()
-                        finish()
+                .pickerStyle(.segmented)
+
+                VStack(spacing: 10) {
+                    Button {
+                        currency = currency == "CRC" ? "USD" : "CRC"
+                    } label: {
+                        Text(verbatim: currency).font(.subheadline.weight(.bold))
+                    }
+                    .buttonStyle(ChipStyle())
+                    .accessibilityLabel("form.currency")
+                    TextField("form.amountPlaceholder", text: $amount)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.center)
+                        .font(.system(size: 56, weight: .heavy))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.5)
+                        .focused($amountFocused)
+                        .foregroundStyle(kind == "income" ? Theme.earn : Color.primary)
+                    if let raw = movement?.rawAmount {
+                        Text("review.rawAmount \(raw)").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+
+                field("form.merchant") {
+                    TextField("form.merchant", text: $merchant)
+                        .padding(13)
+                        .background(Theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+
+                field("form.category") {
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(categories.sorted { $0.displayName < $1.displayName }) { c in
+                            let selected = categoryId == c.id
+                            Button {
+                                withAnimation(.snappy) { categoryId = selected ? nil : c.id }
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Tile(look: Looks.of(c), size: 36)
+                                    Text(c.displayName).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Theme.fill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .strokeBorder(selected ? Color(hex: 0xFF6A4D) : .clear, lineWidth: 2)
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    if suggestion?.id == c.id {
+                                        Label("form.suggestedShort", systemImage: "sparkles")
+                                            .font(.caption2.weight(.heavy))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 6).padding(.vertical, 2)
+                                            .background(Theme.brandHorizontal, in: Capsule())
+                                            .offset(x: 4, y: -7)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                if !accounts.isEmpty {
+                    field("form.account") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(accounts) { a in
+                                    Button {
+                                        accountId = accountId == a.id ? nil : a.id
+                                    } label: {
+                                        Label(a.name, systemImage: "creditcard")
+                                    }
+                                    .buttonStyle(ChipStyle(selected: accountId == a.id))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                field("form.date") {
+                    DatePicker("form.date", selection: $date).labelsHidden()
+                }
+
+                field("form.note") {
+                    TextField("form.note", text: $note)
+                        .padding(13)
+                        .background(Theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+
+                Button(action: save) {
+                    Label(LocalizedStringKey(kind == "income" ? "form.saveIncome" : "form.saveExpense"), systemImage: "checkmark")
+                }
+                .buttonStyle(BrandButtonStyle())
+                .padding(.top, 4)
+
+                if movement != nil {
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Label("form.delete", systemImage: "trash").frame(maxWidth: .infinity)
+                    }
+                    .padding(.vertical, 6)
+                }
             }
+            .padding(18)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.background)
         .navigationTitle(LocalizedStringKey(movement == nil ? "form.titleNew" : "form.titleEdit"))
         .alert("form.invalidAmount", isPresented: $invalid) {}
+        .confirmationDialog("form.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("form.delete", role: .destructive) {
+                movement?.deleted = true
+                movement?.touch()
+                finish()
+            }
+        }
         .sensoryFeedback(.success, trigger: saved)
         .onAppear(perform: load)
+    }
+
+    private func field<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.caption.weight(.bold)).foregroundStyle(.secondary).textCase(.uppercase)
+            content()
+        }
     }
 
     private func load() {

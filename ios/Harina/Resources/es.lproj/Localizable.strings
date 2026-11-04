@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* Every visible text of the iOS app. Spanish is the development language; another language is a new .lproj folder. */
 
-"tab.month" = "Mes";
+"tab.month" = "Resumen";
+"tab.movements" = "Movimientos";
 "tab.add" = "Anotar";
 "tab.review" = "Por revisar";
 "tab.settings" = "Ajustes";
@@ -9,14 +10,46 @@
 "lock.reason" = "Abre harina";
 "lock.unlock" = "Desbloquear";
 
-"month.title" = "Resumen del mes";
+"greeting.morning" = "Buenos días";
+"greeting.afternoon" = "Buenas tardes";
+"greeting.evening" = "Buenas noches";
+
+"month.title" = "Resumen";
 "month.previous" = "Mes anterior";
 "month.next" = "Mes siguiente";
 "month.spent %@" = "Gastado %@";
 "month.earned %@" = "Ingresado %@";
 "month.empty" = "Todavía no hay movimientos este mes.";
-"month.byCategory" = "Por categoría";
+"month.byCategory" = "En qué se va";
 "month.movements" = "Movimientos";
+"month.spentIn %@" = "Gastado en %@";
+"month.income" = "Ingresos";
+"month.balance" = "Balance";
+"month.vsLess %@ %@" = "%1$@ menos que %2$@ a esta fecha";
+"month.vsMore %@ %@" = "%1$@ más que %2$@ a esta fecha";
+"month.vsNone" = "Primer mes con gastos";
+"month.pace" = "Ritmo del mes";
+"month.thisMonth" = "Este mes";
+"month.lastMonth" = "Mes anterior";
+"month.recent" = "Últimos movimientos";
+"month.seeAll" = "Ver todos";
+"month.reviewTitle %lld" = "%lld por revisar";
+"month.reviewSub" = "Ponles categoría con un toque";
+"month.emptyTitle" = "Mes en blanco";
+"month.today" = "Hoy";
+"month.yesterday" = "Ayer";
+
+"chart.day" = "Día";
+"chart.amount" = "Monto";
+"chart.series" = "Serie";
+
+"movements.title" = "Movimientos";
+"movements.search" = "Buscar comercio, nota o categoría";
+"movements.empty" = "No hay movimientos que coincidan.";
+"movements.filter.all" = "Todos";
+"movements.filter.expense" = "Gastos";
+"movements.filter.income" = "Ingresos";
+"movements.filter.apple_pay" = "Apple Pay";
 
 "form.titleNew" = "Anotar movimiento";
 "form.titleEdit" = "Editar movimiento";
@@ -34,10 +67,18 @@
 "form.save" = "Guardar";
 "form.delete" = "Borrar";
 "form.suggested %@" = "Sugerida: %@";
+"form.amountPlaceholder" = "0";
+"form.suggestedShort" = "Sugerida";
+"form.saveExpense" = "Guardar gasto";
+"form.saveIncome" = "Guardar ingreso";
+"form.confirmDelete" = "¿Borrar este movimiento?";
 "form.invalidAmount" = "Escribe un monto válido, por ejemplo 4500 o 12,50.";
 
 "review.title" = "Por revisar";
-"review.empty" = "Nada por revisar.";
+"review.empty" = "No hay nada por revisar. Cada pago nuevo con Apple Pay aparece aquí.";
+"review.emptyTitle" = "Todo al día";
+"review.intro" = "Pagos de Apple Pay sin categoría o con un monto que harina no pudo leer. Un toque y listo.";
+"review.fixAmount" = "Revisar monto";
 "review.apply %@" = "Usar %@";
 "review.rawAmount %@" = "Monto recibido: %@";
 

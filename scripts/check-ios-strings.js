@@ -3,16 +3,17 @@ import { readFileSync, readdirSync } from "node:fs";
 
 const dir = "ios/Harina/Resources/es.lproj";
 const strings = readFileSync(`${dir}/Localizable.strings`, "utf8") + readFileSync(`${dir}/AppShortcuts.strings`, "utf8");
-const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace("${applicationName}", "%@")));
+// Interpolations become %@ or %lld depending on the type; compare them all as %@.
+const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace("${applicationName}", "%@").replace(/%lld/g, "%@")));
 const errors = [];
 for (const f of readdirSync("ios/Harina", { recursive: true }).filter((p) => p.endsWith(".swift"))) {
   const src = readFileSync(`ios/Harina/${f}`, "utf8");
   // Literal keys look like "area.name", optionally with one interpolation: "area.name \(x)".
-  for (const m of src.matchAll(/(systemImage: |systemName: |L\()?"([a-z]+\.[a-zA-Z.]+)( \\\([^)]*\)+)?"/g)) {
+  for (const m of src.matchAll(/(systemImage: |systemName: |static let \w+ = |L\()?"([a-z]+\.[a-zA-Z.]+)((?: \\\([^"]*?\))*)"/g)) {
     if (m[1]) continue; // SF Symbols, and run-time keys checked below
-    m.splice(1, 1);
-    const key = m[1] + (m[2] ? " %@" : "");
-    if (/^(app\.lzno|harina\.|api\.)/.test(m[1])) continue;
+    const count = (m[3].match(/\\\(/g) ?? []).length;
+    const key = m[2] + " %@".repeat(count);
+    if (/^(app\.lzno|harina\.|api\.)/.test(m[2])) continue;
     if (!defined.has(key)) errors.push(`ios/Harina/${f}: missing "${key}"`);
   }
   for (const m of src.matchAll(/L\("([a-z.]+)" \+/g)) {

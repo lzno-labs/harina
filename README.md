@@ -7,6 +7,15 @@ Personal finance for people who pay with their phone. Log spending and income in
 - **Server and web** (`src/`, `public/`): Node or Cloudflare Workers, SQLite. Passkey sign-in, monthly summary by currency and category, review list, export.
 - **iOS app** (`ios/`): SwiftUI, iOS 17+. The "Registrar pago en harina" Shortcuts action, offline storage, sync, Face ID.
 
+Screenshots with sample data:
+
+<p>
+  <img src="docs/screenshots/mobile-dark.jpg" width="220" alt="">
+  <img src="docs/screenshots/review-dark.jpg" width="220" alt="">
+  <img src="docs/screenshots/add-dark.jpg" width="220" alt="">
+</p>
+<img src="docs/screenshots/desktop-dark.jpg" width="680" alt="">
+
 ## Self-host in a few commands
 
 Requires Node 22.13 or newer. Data lives in one SQLite file.

@@ -7,6 +7,15 @@ Finanzas personales para quien paga con el celular. Anota gastos e ingresos en c
 - **Servidor y web** (`src/`, `public/`): Node o Cloudflare Workers, SQLite. Entrada con llave de acceso (passkey), resumen del mes por moneda y categoría, lista por revisar y exportación.
 - **App de iOS** (`ios/`): SwiftUI, iOS 17 o más reciente. La acción de Atajos «Registrar pago en harina», guardado sin señal, sincronización y Face ID.
 
+Capturas con datos de ejemplo:
+
+<p>
+  <img src="docs/screenshots/mobile-dark.jpg" width="220" alt="">
+  <img src="docs/screenshots/review-dark.jpg" width="220" alt="">
+  <img src="docs/screenshots/add-dark.jpg" width="220" alt="">
+</p>
+<img src="docs/screenshots/desktop-dark.jpg" width="680" alt="">
+
 ## Instálalo en tu máquina
 
 Necesitas Node 22.13 o más reciente. Los datos viven en un solo archivo SQLite.
