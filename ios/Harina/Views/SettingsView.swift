@@ -1,0 +1,180 @@
+// SPDX-License-Identifier: MPL-2.0
+import HarinaKit
+import SwiftData
+import SwiftUI
+import UIKit
+
+struct SettingsView: View {
+    @Environment(\.modelContext) private var context
+    @EnvironmentObject private var sync: SyncService
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    @Query(filter: #Predicate<AccountItem> { $0.deleted == false }) private var accounts: [AccountItem]
+    @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt) private var movements: [Movement]
+    @AppStorage("defaultCurrency") private var defaultCurrency = "CRC"
+    @AppStorage("appLock") private var appLock = true
+    @State private var newCategory = ""
+    @State private var newAccount = ""
+    @State private var newCard = ""
+
+    var body: some View {
+        Form {
+            Section("settings.server") {
+                if sync.isLinked, let url = AppSettings.serverURL {
+                    LabeledContent("settings.linkedTo") { Text(url.host() ?? url.absoluteString) }
+                    if let last = sync.lastSync {
+                        LabeledContent("settings.lastSync") { Text(last.formatted(date: .abbreviated, time: .shortened)) }
+                    }
+                    if sync.lastError != nil { Text("settings.syncError").foregroundStyle(.orange) }
+                    Button("settings.syncNow") { Task { await sync.sync() } }.disabled(sync.syncing)
+                    Button("settings.unlink", role: .destructive) { sync.unlink() }
+                } else {
+                    NavigationLink("settings.link") { LinkView() }
+                    Text("settings.linkHint").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Section("settings.capture") {
+                NavigationLink("settings.automationHelp") { AutomationHelpView() }
+                Picker("settings.defaultCurrency", selection: $defaultCurrency) {
+                    Text(verbatim: "CRC").tag("CRC")
+                    Text(verbatim: "USD").tag("USD")
+                }
+            }
+            Section("categories.title") {
+                ForEach(categories.sorted { $0.displayName < $1.displayName }) { c in
+                    Text(c.displayName)
+                }
+                .onDelete { idx in
+                    let sorted = categories.sorted { $0.displayName < $1.displayName }
+                    for i in idx { sorted[i].deleted = true; sorted[i].updatedAt = SyncRules.now(); sorted[i].dirty = true }
+                    saveAndSync()
+                }
+                HStack {
+                    TextField("categories.newName", text: $newCategory)
+                    Button("categories.add") {
+                        let name = newCategory.trimmingCharacters(in: .whitespaces)
+                        guard !name.isEmpty else { return }
+                        context.insert(CategoryItem(CategoryDTO(id: UUID().uuidString, name: String(name.prefix(100)), updated_at: SyncRules.now()), dirty: true))
+                        newCategory = ""
+                        saveAndSync()
+                    }
+                }
+            }
+            Section {
+                ForEach(accounts) { a in
+                    VStack(alignment: .leading) {
+                        Text(a.name)
+                        if let card = a.card { Text(card).font(.caption).foregroundStyle(.secondary) }
+                    }
+                }
+                .onDelete { idx in
+                    for i in idx { accounts[i].deleted = true; accounts[i].updatedAt = SyncRules.now(); accounts[i].dirty = true }
+                    saveAndSync()
+                }
+                TextField("accounts.name", text: $newAccount)
+                TextField("accounts.card", text: $newCard)
+                Button("accounts.add") {
+                    let name = newAccount.trimmingCharacters(in: .whitespaces)
+                    guard !name.isEmpty else { return }
+                    let card = newCard.trimmingCharacters(in: .whitespaces)
+                    context.insert(AccountItem(AccountDTO(id: UUID().uuidString, name: String(name.prefix(100)),
+                                                          card: card.isEmpty ? nil : String(card.prefix(100)), updated_at: SyncRules.now()), dirty: true))
+                    newAccount = ""; newCard = ""
+                    saveAndSync()
+                }
+            } header: {
+                Text("accounts.title")
+            } footer: {
+                Text("accounts.cardHint")
+            }
+            Section {
+                ShareLink(item: exportFile()) { Label("settings.export", systemImage: "square.and.arrow.up") }
+                Toggle("settings.appLock", isOn: $appLock)
+            } header: {
+                Text("settings.data")
+            } footer: {
+                Text("settings.privacy")
+            }
+        }
+        .navigationTitle("tab.settings")
+    }
+
+    private func saveAndSync() {
+        try? context.save()
+        Task { await sync.sync() }
+    }
+
+    /// Everything on this iPhone as CSV (the web also exports JSON).
+    private func exportFile() -> URL {
+        let headers = ["date", "kind", "amount", "currency", "category", "account", "merchant", "note", "card", "source", "needs_review", "id"]
+            .map { L("export." + $0) }
+        let csv = CSVExport.make(
+            movements.map(\.dto), headers: headers,
+            categoryName: { id in categories.first { $0.id == id }?.displayName ?? "" },
+            accountName: { id in accounts.first { $0.id == id }?.name ?? "" },
+            label: { L("label." + $0) }
+        )
+        let url = FileManager.default.temporaryDirectory.appending(path: "harina.csv")
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+}
+
+struct LinkView: View {
+    @EnvironmentObject private var sync: SyncService
+    @Environment(\.dismiss) private var dismiss
+    @State private var server = "https://"
+    @State private var code = ""
+    @State private var working = false
+    @State private var failed: LocalizedStringKey?
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("link.server", text: $server).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                TextField("link.code", text: $code).textInputAutocapitalization(.characters).autocorrectionDisabled()
+            } footer: {
+                Text("link.help")
+            }
+            Button("link.button") { Task { await link() } }.disabled(working || code.count < 8)
+            if let failed { Text(failed).foregroundStyle(.red) }
+        }
+        .navigationTitle("settings.link")
+    }
+
+    private func link() async {
+        guard let url = URL(string: server.trimmingCharacters(in: .whitespaces)), url.scheme == "https" || url.host() == "localhost" else {
+            failed = "link.badServer"
+            return
+        }
+        working = true
+        defer { working = false }
+        do {
+            try await sync.link(server: url, code: code, deviceName: UIDevice.current.name)
+            await sync.sync()
+            dismiss()
+        } catch SyncError.invalidLinkCode {
+            failed = "link.badCode"
+        } catch {
+            failed = "link.failed"
+        }
+    }
+}
+
+/// One-step guide to create the "Transaction" automation that runs our App Intent.
+struct AutomationHelpView: View {
+    var body: some View {
+        List {
+            Section {
+                ForEach(1...6, id: \.self) { n in
+                    Text(L("automation.step" + String(n)))
+                }
+            } footer: {
+                Text("automation.footer")
+            }
+            Section {
+                Link(destination: URL(string: "shortcuts://")!) { Label("automation.open", systemImage: "arrow.up.forward.app") }
+            }
+        }
+        .navigationTitle("settings.automationHelp")
+    }
+}

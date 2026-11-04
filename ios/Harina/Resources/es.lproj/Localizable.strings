@@ -1,0 +1,122 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+/* Every visible text of the iOS app. Spanish is the development language; another language is a new .lproj folder. */
+
+"tab.month" = "Mes";
+"tab.add" = "Anotar";
+"tab.review" = "Por revisar";
+"tab.settings" = "Ajustes";
+
+"lock.reason" = "Abre harina";
+"lock.unlock" = "Desbloquear";
+
+"month.title" = "Resumen del mes";
+"month.previous" = "Mes anterior";
+"month.next" = "Mes siguiente";
+"month.spent %@" = "Gastado %@";
+"month.earned %@" = "Ingresado %@";
+"month.empty" = "Todavía no hay movimientos este mes.";
+"month.byCategory" = "Por categoría";
+"month.movements" = "Movimientos";
+
+"form.titleNew" = "Anotar movimiento";
+"form.titleEdit" = "Editar movimiento";
+"form.kind" = "Tipo";
+"form.expense" = "Gasto";
+"form.income" = "Ingreso";
+"form.amount" = "Monto";
+"form.currency" = "Moneda";
+"form.merchant" = "Comercio";
+"form.category" = "Categoría";
+"form.account" = "Cuenta";
+"form.noAccount" = "Sin cuenta";
+"form.date" = "Fecha";
+"form.note" = "Nota (opcional)";
+"form.save" = "Guardar";
+"form.delete" = "Borrar";
+"form.suggested %@" = "Sugerida: %@";
+"form.invalidAmount" = "Escribe un monto válido, por ejemplo 4500 o 12,50.";
+
+"review.title" = "Por revisar";
+"review.empty" = "Nada por revisar.";
+"review.apply %@" = "Usar %@";
+"review.rawAmount %@" = "Monto recibido: %@";
+
+"category.none" = "Sin categoría";
+"category.food" = "Comida";
+"category.groceries" = "Súper";
+"category.transport" = "Transporte";
+"category.home" = "Casa";
+"category.health" = "Salud";
+"category.entertainment" = "Entretenimiento";
+"category.other" = "Otros";
+
+"categories.title" = "Categorías";
+"categories.newName" = "Nueva categoría";
+"categories.add" = "Agregar";
+
+"accounts.title" = "Cuentas";
+"accounts.name" = "Nombre de la cuenta";
+"accounts.card" = "Tarjeta que reporta el atajo (opcional)";
+"accounts.cardHint" = "Las cuentas de cada tarjeta se crean solas con el primer pago. Desliza para borrar.";
+"accounts.add" = "Agregar cuenta";
+
+"sync.pending" = "Pendiente de sincronizar";
+
+"settings.server" = "Servidor";
+"settings.linkedTo" = "Vinculado con";
+"settings.lastSync" = "Última sincronización";
+"settings.syncError" = "No se pudo sincronizar. Todo queda guardado en el iPhone y se envía cuando haya señal.";
+"settings.syncNow" = "Sincronizar ahora";
+"settings.unlink" = "Desvincular este iPhone";
+"settings.link" = "Vincular con el servidor";
+"settings.linkHint" = "harina funciona sin servidor. Vincúlalo para tener respaldo, la web y la exportación completa.";
+"settings.capture" = "Pagos con Apple Pay";
+"settings.automationHelp" = "Cómo anotar los pagos solos";
+"settings.defaultCurrency" = "Moneda si el pago no la indica";
+"settings.data" = "Tus datos";
+"settings.export" = "Exportar CSV";
+"settings.appLock" = "Pedir Face ID al abrir";
+"settings.privacy" = "harina no usa IA, no se conecta a tu banco y no comparte tus datos con nadie.";
+
+"link.server" = "Dirección del servidor, por ejemplo https://harina.lzno.app";
+"link.code" = "Código de vinculación";
+"link.help" = "En la web de harina: Ajustes, «Generar código de vinculación». El código sirve una sola vez y vence en 10 minutos.";
+"link.button" = "Vincular";
+"link.badServer" = "La dirección debe empezar con https://";
+"link.badCode" = "El código no es válido o ya venció.";
+"link.failed" = "No se pudo conectar con el servidor.";
+
+"automation.step1" = "1. Abre la app Atajos y ve a la pestaña «Automatización».";
+"automation.step2" = "2. Toca «+» (o «Nueva automatización») y elige «Transacción».";
+"automation.step3" = "3. Elige tus tarjetas de Wallet, deja marcado «Toco» y elige «Ejecutar inmediatamente». Toca «Siguiente».";
+"automation.step4" = "4. Toca «Nuevo atajo en blanco» y agrega la acción «Registrar pago en harina».";
+"automation.step5" = "5. En «Monto» elige la variable «Entrada del atajo» y luego «Monto». En «Comercio» elige «Comercio» y en «Tarjeta», «Tarjeta o pase».";
+"automation.step6" = "6. Guarda. Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
+"automation.footer" = "harina solo recibe el comercio, el monto y el nombre de la tarjeta. No ve tu banco ni tus contraseñas.";
+"automation.open" = "Abrir Atajos";
+
+"intent.record.title" = "Registrar pago en harina";
+"intent.record.description" = "Anota un pago con Apple Pay como gasto sin categoría. Funciona sin señal.";
+"intent.record.short" = "Registrar pago";
+"intent.record.saved %@" = "Anotado: %@";
+"intent.record.savedReview" = "Pago anotado. Revisa el monto en harina.";
+"intent.param.amount" = "Monto";
+"intent.param.merchant" = "Comercio";
+"intent.param.card" = "Tarjeta";
+
+"export.date" = "fecha";
+"export.kind" = "tipo";
+"export.amount" = "monto";
+"export.currency" = "moneda";
+"export.category" = "categoria";
+"export.account" = "cuenta";
+"export.merchant" = "comercio";
+"export.note" = "nota";
+"export.card" = "tarjeta";
+"export.source" = "origen";
+"export.needs_review" = "por_revisar";
+"export.id" = "id";
+"label.expense" = "Gasto";
+"label.income" = "Ingreso";
+"label.manual" = "Manual";
+"label.apple_pay" = "Apple Pay";
