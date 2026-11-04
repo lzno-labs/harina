@@ -94,3 +94,42 @@ final class SyncRulesTests: XCTestCase {
         XCTAssertTrue(csv.contains("2026-11-02T12:00:00Z,expense,4500.50,CRC,,,'=cmd,,,manual,0,t1"))
     }
 }
+
+final class OnboardingLogicTests: XCTestCase {
+    func testCatalogMatchesTheServerDefaults() {
+        XCTAssertEqual(CategoryCatalog.all.filter(\.on).map(\.key),
+                       ["food", "groceries", "transport", "home", "health", "entertainment", "other"])
+        XCTAssertEqual(CategoryCatalog.suggestion("coffee")?.id, "default-coffee")
+        XCTAssertEqual(Set(CategoryCatalog.all.map(\.key)).count, CategoryCatalog.all.count)
+    }
+
+    func testColors() {
+        XCTAssertEqual(CategoryCatalog.hex("#22c58b"), 0x22C58B)
+        XCTAssertNil(CategoryCatalog.hex("red"))
+        XCTAssertEqual(CategoryCatalog.shade(0xFFFFFF, 0.5), 0x7F7F7F)
+        XCTAssertEqual(CategoryCatalog.firstEmoji("👍🏽 hola"), "👍🏽")
+    }
+
+    func testLinkRequest() {
+        let ok = LinkRequest.parse(URL(string: "harina://link?server=https%3A%2F%2Fharina.lzno.app&code=K7QF-M2XA")!)
+        XCTAssertEqual(ok?.server.host, "harina.lzno.app")
+        XCTAssertEqual(ok?.code, "K7QF-M2XA")
+        XCTAssertNotNil(LinkRequest.parse(URL(string: "harina://link?server=http://localhost:8787&code=K7QFM2XA")!))
+        for bad in [
+            "harina://link?server=http://evil.example&code=K7QFM2XA",
+            "harina://link?server=https://u:p@evil.example&code=K7QFM2XA",
+            "harina://link?code=K7QFM2XA",
+            "harina://link?server=https://harina.lzno.app&code=1",
+            "other://link?server=https://harina.lzno.app&code=K7QFM2XA",
+            "harina://other?server=https://harina.lzno.app&code=K7QFM2XA",
+        ] {
+            XCTAssertNil(LinkRequest.parse(URL(string: bad)!), bad)
+        }
+    }
+
+    func testCategoryWireFormatHasLook() throws {
+        let c = try JSONDecoder().decode(CategoryDTO.self, from: Data(##"{"id":"c1","key":null,"name":"Gym","icon":"🏋️","color":"#16a34a","updated_at":5,"deleted":0,"seq":3}"##.utf8))
+        XCTAssertEqual(c.icon, "🏋️")
+        XCTAssertEqual(c.color, "#16a34a")
+    }
+}

@@ -30,6 +30,12 @@ struct RecordPaymentIntent: AppIntent {
         try context.save()
         // Best effort: without signal the payment waits in the queue and syncs later.
         await SyncService.shared.sync()
+        // First-week check: remember one payment that could not reach the server right away.
+        let capturedId = dto.id
+        if AppSettings.offlineCaptureId == nil, SyncService.shared.isLinked,
+           let saved = try? context.fetch(FetchDescriptor<Movement>(predicate: #Predicate { $0.id == capturedId })).first, saved.dirty {
+            AppSettings.offlineCaptureId = dto.id
+        }
         let shown = dto.needs_review == 1
             ? String(localized: "intent.record.savedReview")
             : String(localized: "intent.record.saved \(Formatting.money(dto.amount_minor, dto.currency))")

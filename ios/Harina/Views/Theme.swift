@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
+import HarinaKit
 import SwiftUI
 import UIKit
 
@@ -30,30 +31,37 @@ struct CategoryLook {
 }
 
 enum Looks {
-    static let defaults: [String: CategoryLook] = [
-        "food": CategoryLook(glyph: "🍽️", from: Color(hex: 0xFF8A4C), to: Color(hex: 0xFF5F6D)),
-        "groceries": CategoryLook(glyph: "🛒", from: Color(hex: 0x22C58B), to: Color(hex: 0x0EA5A4)),
-        "transport": CategoryLook(glyph: "🚗", from: Color(hex: 0x4C8DFF), to: Color(hex: 0x6A5CFF)),
-        "home": CategoryLook(glyph: "🏠", from: Color(hex: 0xA77BFF), to: Color(hex: 0xD061FF)),
-        "health": CategoryLook(glyph: "💊", from: Color(hex: 0xFF5C8A), to: Color(hex: 0xFF3F5F)),
-        "entertainment": CategoryLook(glyph: "🎬", from: Color(hex: 0xFFC23D), to: Color(hex: 0xFF8F3D)),
-        "other": CategoryLook(glyph: "📦", from: Color(hex: 0x8E97A8), to: Color(hex: 0x5F6779)),
-    ]
+    static let none = CategoryLook(glyph: "?", from: Color(hex: 0x9AA1B4), to: Color(hex: 0x6B7389))
+    static let income = CategoryLook(glyph: "↓", from: Color(hex: 0x34E0A1), to: Color(hex: 0x0FB57A))
     static let palette: [(UInt32, UInt32)] = [
         (0x14B8A6, 0x0891B2), (0xF97316, 0xEF4444), (0x6366F1, 0xA855F7), (0xEC4899, 0xF43F5E),
         (0x84CC16, 0x16A34A), (0x0EA5E9, 0x2563EB), (0xEAB308, 0xF97316),
     ]
-    static let none = CategoryLook(glyph: "?", from: Color(hex: 0x9AA1B4), to: Color(hex: 0x6B7389))
-    static let income = CategoryLook(glyph: "↓", from: Color(hex: 0x34E0A1), to: Color(hex: 0x0FB57A))
 
     static func of(_ c: CategoryItem?) -> CategoryLook {
         guard let c else { return none }
-        if let key = c.key, let l = defaults[key] { return l }
-        var n: UInt32 = 0
-        for u in c.id.unicodeScalars { n = n &* 31 &+ u.value }
-        let (a, b) = palette[Int(n % UInt32(palette.count))]
-        let first = c.displayName.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
-        return CategoryLook(glyph: first, from: Color(hex: a), to: Color(hex: b))
+        return make(id: c.id, key: c.key, name: c.displayName, icon: c.icon, color: c.color)
+    }
+
+    static func of(_ s: SuggestedCategory) -> CategoryLook {
+        CategoryLook(glyph: s.glyph, from: Color(hex: s.from), to: Color(hex: s.to))
+    }
+
+    /// Same rules as the web: chosen emoji and color first, then the suggestion's, then generated.
+    static func make(id: String, key: String?, name: String, icon: String?, color: String?) -> CategoryLook {
+        let base = CategoryCatalog.suggestion(key)
+        var from: UInt32, to: UInt32
+        if let c = CategoryCatalog.hex(color) {
+            (from, to) = (c, CategoryCatalog.shade(c))
+        } else if let base {
+            (from, to) = (base.from, base.to)
+        } else {
+            var n: UInt32 = 0
+            for u in id.unicodeScalars { n = n &* 31 &+ u.value }
+            (from, to) = palette[Int(n % UInt32(palette.count))]
+        }
+        let glyph = icon ?? base?.glyph ?? name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
+        return CategoryLook(glyph: glyph, from: Color(hex: from), to: Color(hex: to))
     }
 }
 

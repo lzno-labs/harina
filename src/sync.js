@@ -7,6 +7,7 @@ const MAX_FUTURE_MS = 24 * 60 * 60 * 1000;
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CURRENCY = /^[A-Z]{3}$/;
+const COLOR = /^#[0-9a-f]{6}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
 
 /** Field rules per entity: [column, type, options]. Order is the column order. */
@@ -18,6 +19,8 @@ export const ENTITIES = {
   categories: [
     ["key", "string", { max: 40 }],
     ["name", "string", { max: 100 }],
+    ["icon", "string", { max: 16 }],
+    ["color", "color", {}],
   ],
   transactions: [
     ["kind", "enum", { required: true, values: ["expense", "income"] }],
@@ -61,6 +64,9 @@ function checkField(entity, [col, type, opt], value) {
       return value;
     case "currency":
       if (typeof value !== "string" || !CURRENCY.test(value)) throw new ValidationError("invalid_record", where);
+      return value;
+    case "color":
+      if (typeof value !== "string" || !COLOR.test(value)) throw new ValidationError("invalid_record", where);
       return value;
     case "id":
       if (typeof value !== "string" || !ID.test(value)) throw new ValidationError("invalid_record", where);

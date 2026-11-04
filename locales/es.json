@@ -8,7 +8,8 @@
       "morning": "Buenos días",
       "afternoon": "Buenas tardes",
       "evening": "Buenas noches"
-    }
+    },
+    "cancel": "Cancelar"
   },
   "nav": {
     "month": "Resumen",
@@ -119,9 +120,26 @@
       "home": "Casa",
       "health": "Salud",
       "entertainment": "Entretenimiento",
-      "other": "Otros"
+      "other": "Otros",
+      "coffee": "Café",
+      "utilities": "Servicios (luz, agua, internet)",
+      "subscriptions": "Suscripciones",
+      "clothing": "Ropa",
+      "pets": "Mascotas",
+      "education": "Educación",
+      "travel": "Viajes",
+      "gifts": "Regalos",
+      "personal": "Cuidado personal",
+      "kids": "Hijos",
+      "sports": "Deporte",
+      "salary": "Salario"
     },
-    "uncategorized": "Sin categoría"
+    "uncategorized": "Sin categoría",
+    "edit": "Editar categoría",
+    "emoji": "Ícono",
+    "customEmoji": "O escribe cualquier emoji",
+    "color": "Color",
+    "suggestions": "Sugerencias para agregar"
   },
   "accounts": {
     "title": "Cuentas",
@@ -134,14 +152,16 @@
   },
   "devices": {
     "title": "iPhone vinculados",
-    "intro": "La app de iOS se vincula una sola vez con un código. En el iPhone: Ajustes de harina, «Vincular con el servidor».",
+    "intro": "Escanea el código con la cámara del iPhone y confirma en harina. Si no puedes escanear, en el iPhone ve a Ajustes, «Vincular con el servidor», y escribe el código.",
     "server": "Servidor: {url}",
-    "newCode": "Generar código de vinculación",
+    "newCode": "Vincular iPhone",
     "code": "Escribe este código en el iPhone. Vence a las {time}",
     "empty": "Ningún iPhone vinculado.",
     "lastSeen": "Última sincronización: {date}",
     "revoke": "Desvincular",
-    "confirmRevoke": "¿Desvincular «{name}»? Dejará de sincronizarse hasta que lo vuelvas a vincular."
+    "confirmRevoke": "¿Desvincular «{name}»? Dejará de sincronizarse hasta que lo vuelvas a vincular.",
+    "scan": "Escanéalo con la cámara del iPhone",
+    "linked": "iPhone vinculado."
   },
   "passkeys": {
     "add": "Agregar otra llave de acceso",
@@ -203,5 +223,29 @@
     "sync": "iPhone y sincronización",
     "security": "Seguridad",
     "account": "Sesión"
+  },
+  "start": {
+    "title": "Empieza aquí",
+    "progress": "{done} de {total} listos",
+    "hide": "Ocultar",
+    "categories": {
+      "title": "Elige tus categorías",
+      "text": "Empieza con las sugeridas y cámbialas a tu gusto.",
+      "cta": "Categorías"
+    },
+    "link": {
+      "title": "Vincula tu iPhone",
+      "text": "Instala harina en el iPhone y escanea el código.",
+      "cta": "Vincular"
+    },
+    "capture": {
+      "title": "Activa la captura de Apple Pay",
+      "text": "En el iPhone, la bienvenida de harina te guía en Atajos."
+    },
+    "first": {
+      "title": "Anota tu primer movimiento",
+      "text": "Un gasto o ingreso, en menos de 10 segundos.",
+      "cta": "Anotar"
+    }
   }
 }

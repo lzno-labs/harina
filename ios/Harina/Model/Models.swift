@@ -60,20 +60,32 @@ final class CategoryItem {
     @Attribute(.unique) var id: String
     var key: String?
     var name: String?
+    /// Emoji and #rrggbb color chosen by the person; nil means the suggestion's or a generated look.
+    var icon: String?
+    var color: String?
     var updatedAt: Int64
     var deleted: Bool
     var dirty: Bool
 
     init(_ dto: CategoryDTO, dirty: Bool) {
-        id = dto.id; key = dto.key; name = dto.name; updatedAt = dto.updated_at
+        id = dto.id; key = dto.key; name = dto.name; icon = dto.icon; color = dto.color; updatedAt = dto.updated_at
         deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
     }
 
     func update(from dto: CategoryDTO) {
-        key = dto.key; name = dto.name; updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; dirty = false
+        key = dto.key; name = dto.name; icon = dto.icon; color = dto.color; updatedAt = dto.updated_at
+        deleted = (dto.deleted ?? 0) != 0; dirty = false
     }
 
-    var dto: CategoryDTO { CategoryDTO(id: id, key: key, name: name, updated_at: updatedAt, deleted: deleted ? 1 : 0) }
+    var dto: CategoryDTO {
+        CategoryDTO(id: id, key: key, name: name, icon: icon, color: color, updated_at: updatedAt, deleted: deleted ? 1 : 0)
+    }
+
+    /// Marks a local edit: new clock value, waiting to be pushed.
+    func touch() {
+        updatedAt = max(SyncRules.now(), updatedAt + 1)
+        dirty = true
+    }
 
     /// Default categories show their translated name until renamed.
     var displayName: String {
@@ -129,8 +141,22 @@ enum AppSettings {
         get { defaults.string(forKey: "defaultCurrency") ?? "CRC" }
         set { defaults.set(newValue, forKey: "defaultCurrency") }
     }
+    /// Off until the person turns it on (onboarding or settings).
     static var appLock: Bool {
-        get { defaults.object(forKey: "appLock") as? Bool ?? true }
+        get { defaults.object(forKey: "appLock") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "appLock") }
+    }
+    static var onboarded: Bool {
+        get { defaults.bool(forKey: "onboarded") }
+        set { defaults.set(newValue, forKey: "onboarded") }
+    }
+    static var onboardedAt: Date? {
+        get { defaults.object(forKey: "onboardedAt") as? Date }
+        set { defaults.set(newValue, forKey: "onboardedAt") }
+    }
+    /// Id of the first payment captured with no signal, for the first-week check.
+    static var offlineCaptureId: String? {
+        get { defaults.string(forKey: "offlineCaptureId") }
+        set { defaults.set(newValue, forKey: "offlineCaptureId") }
     }
 }

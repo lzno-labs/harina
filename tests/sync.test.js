@@ -105,3 +105,22 @@ test("invalid records are rejected whole", async () => {
 test("merchant keys ignore case, accents and punctuation", () => {
   assert.equal(merchantKey("AUTOMERCADO  Escazú!"), merchantKey("automercado escazu"));
 });
+
+test("categories carry an optional emoji and color; suggestions converge by id", async () => {
+  const { call, login } = await setup();
+  const h = await login();
+  const push = async (rec) => call("/api/sync", { method: "POST", headers: h, body: { changes: { categories: [rec] } } });
+  // An iPhone that started offline turns off a default and adds a suggestion with the shared id.
+  assert.equal((await push({ id: "default-food", key: "food", updated_at: 5, deleted: true })).status, 200);
+  assert.equal((await push({ id: "default-coffee", key: "coffee", icon: "☕", color: "#a16207", updated_at: 5 })).status, 200);
+  assert.equal((await push({ id: "c1", name: "Gym", icon: "🏋️", color: "#16a34a", updated_at: 5 })).status, 200);
+  for (const bad of [{ color: "red" }, { color: "#FFF" }, { icon: "x".repeat(17) }]) {
+    assert.equal((await push({ id: "c2", name: "x", updated_at: 5, ...bad })).status, 400, JSON.stringify(bad));
+  }
+  const { records } = await (await call("/api/sync?since=0", { headers: h })).json();
+  const byId = Object.fromEntries(records.categories.map((c) => [c.id, c]));
+  assert.equal(byId["default-food"].deleted, 1);
+  assert.equal(byId["default-coffee"].icon, "☕");
+  assert.equal(byId.c1.color, "#16a34a");
+  assert.equal(records.categories.filter((c) => c.id === "default-food").length, 1);
+});

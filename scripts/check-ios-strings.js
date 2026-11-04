@@ -6,6 +6,8 @@ const strings = readFileSync(`${dir}/Localizable.strings`, "utf8") + readFileSyn
 // Interpolations become %@ or %lld depending on the type; compare them all as %@.
 const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace("${applicationName}", "%@").replace(/%lld/g, "%@")));
 const errors = [];
+const SYMBOL_ROOTS = new Set(["checkmark", "plus", "bolt", "dollarsign", "lock", "arrow", "chevron", "square", "circle", "faceid",
+  "qrcode", "link", "trash", "pencil", "icloud", "tray", "house", "list", "slider", "creditcard", "leaf", "desktopcomputer", "sparkles"]);
 for (const f of readdirSync("ios/Harina", { recursive: true }).filter((p) => p.endsWith(".swift"))) {
   const src = readFileSync(`ios/Harina/${f}`, "utf8");
   // Literal keys look like "area.name", optionally with one interpolation: "area.name \(x)".
@@ -14,6 +16,13 @@ for (const f of readdirSync("ios/Harina", { recursive: true }).filter((p) => p.e
     const count = (m[3].match(/\\\(/g) ?? []).length;
     const key = m[2] + " %@".repeat(count);
     if (/^(app\.lzno|harina\.|api\.)/.test(m[2])) continue;
+    // SF Symbols passed through variables or ternaries (systemImage: and systemName: are skipped above).
+    if (SYMBOL_ROOTS.has(m[2].split(".")[0])) continue;
+    // Prefix of a key built at run time, for example LocalizedStringKey("onboarding.currency." + code).
+    if (m[2].endsWith(".")) {
+      if (![...defined].some((k) => k.startsWith(m[2]))) errors.push(`ios/Harina/${f}: no keys start with "${m[2]}"`);
+      continue;
+    }
     if (!defined.has(key)) errors.push(`ios/Harina/${f}: missing "${key}"`);
   }
   for (const m of src.matchAll(/L\("([a-z.]+)" \+/g)) {

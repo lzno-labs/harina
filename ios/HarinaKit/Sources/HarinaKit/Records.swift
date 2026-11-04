@@ -34,10 +34,14 @@ public struct CategoryDTO: Codable, Equatable, Sendable {
     public var id: String
     public var key: String?
     public var name: String?
+    public var icon: String?
+    public var color: String?
     public var updated_at: Int64
     public var deleted: Int?
-    public init(id: String, key: String? = nil, name: String? = nil, updated_at: Int64, deleted: Int? = 0) {
-        self.id = id; self.key = key; self.name = name; self.updated_at = updated_at; self.deleted = deleted
+    public init(id: String, key: String? = nil, name: String? = nil, icon: String? = nil, color: String? = nil,
+                updated_at: Int64, deleted: Int? = 0) {
+        self.id = id; self.key = key; self.name = name; self.icon = icon; self.color = color
+        self.updated_at = updated_at; self.deleted = deleted
     }
 }
 

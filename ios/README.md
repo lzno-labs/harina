@@ -23,7 +23,11 @@ HARINA_BUNDLE_ID = com.yourname.harina
 
 ## Use
 
-1. Open harina and allow Face ID.
-2. On the web, Settings, "Generar código de vinculación". In the app, Settings, "Vincular con el servidor": type the server address and the code. (Optional: the app works without a server.)
-3. In the app, Settings, "Cómo anotar los pagos solos", and follow the six steps to create the Shortcuts "Transaction" automation.
-4. Pay with Apple Pay. The payment appears in "Por revisar" as an uncategorized expense.
+The first launch walks you through it (design: [`docs/design/onboarding.md`](../docs/design/onboarding.md)):
+
+1. Main currency and your categories (suggestions on, more to add; hold one to change its name, emoji or color).
+2. The Shortcuts "Transaction" automation, with "Abrir Atajos". harina waits for your first Apple Pay payment and celebrates it.
+3. Face ID (optional).
+4. Backup and web (optional): on the web, Settings, "Vincular iPhone", scan the QR with the iPhone camera and confirm in harina. You can also type the code.
+
+For the first two weeks the summary shows a "Primera semana" card: an iPhone payment, an Apple Watch payment and a payment without signal.

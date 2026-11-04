@@ -44,6 +44,10 @@ targets:
         CFBundleDevelopmentRegion: es
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [app.lzno.harina.sync]
+        # harina://link?server=…&code=… from the web's QR (always confirmed in the app).
+        CFBundleURLTypes:
+          - CFBundleURLName: harina-link
+            CFBundleURLSchemes: [harina]
         NSFaceIDUsageDescription: $(HARINA_FACE_ID_TEXT)
 schemes:
   Harina:

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import BackgroundTasks
+import HarinaKit
 import LocalAuthentication
 import Network
 import SwiftData
@@ -11,6 +12,9 @@ struct HarinaApp: App {
     @Environment(\.scenePhase) private var phase
     @StateObject private var lock = AppLock()
     @StateObject private var sync = SyncService.shared
+    @AppStorage("onboarded") private var onboarded = false
+    @State private var pendingLink: LinkRequest?
+    @State private var badLink = false
     private let network = NetworkWatcher()
 
     var body: some Scene {
@@ -18,11 +22,19 @@ struct HarinaApp: App {
             Group {
                 if lock.locked {
                     LockedView(unlock: lock.unlock)
+                } else if !onboarded {
+                    OnboardingView { withAnimation { onboarded = true } }
                 } else {
                     RootView()
                 }
             }
             .environmentObject(sync)
+            .onOpenURL { url in
+                // harina://link?server=…&code=… from the web's QR code; always confirmed by the person.
+                if let req = LinkRequest.parse(url) { pendingLink = req } else { badLink = true }
+            }
+            .sheet(item: $pendingLink) { LinkConfirmView(request: $0).environmentObject(sync) }
+            .alert("deeplink.invalid", isPresented: $badLink) {}
             .onAppear {
                 network.onReconnect = { Task { await SyncService.shared.sync() } }
                 network.start()

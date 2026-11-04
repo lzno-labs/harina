@@ -2,6 +2,7 @@
 import { applyI18n, loadLocale, region, t } from "./i18n.js";
 import { formatMoney, minorToInput, parseAmount } from "./money.js";
 import { createPasskey, getPasskey, supported } from "./webauthn.js";
+import qrcode from "./vendor/qrcode-generator-2.0.4.js";
 
 const CURRENCIES = ["CRC", "USD"];
 const state = {
@@ -14,6 +15,7 @@ const state = {
   filter: "all",
   query: "",
   back: "#/",
+  devices: [],
 };
 const app = document.getElementById("app");
 let main;
@@ -184,32 +186,59 @@ const needsReview = (tx) => !tx.deleted && (tx.needs_review || (tx.kind === "exp
 
 // ---------- category look ----------
 
-const DEFAULT_LOOK = {
-  food: ["🍽️", "#ff8a4c", "#ff5f6d"],
-  groceries: ["🛒", "#22c58b", "#0ea5a4"],
-  transport: ["🚗", "#4c8dff", "#6a5cff"],
-  home: ["🏠", "#a77bff", "#d061ff"],
-  health: ["💊", "#ff5c8a", "#ff3f5f"],
-  entertainment: ["🎬", "#ffc23d", "#ff8f3d"],
-  other: ["📦", "#8e97a8", "#5f6779"],
-};
+// Suggested categories, same keys and ids (`default-<key>`) on the web, the iPhone and the server.
+// The first seven are on by default (PRD); the rest are suggestions the person can add.
+export const CATALOG = [
+  ["food", "🍽️", "#ff8a4c", "#ff5f6d", true],
+  ["groceries", "🛒", "#22c58b", "#0ea5a4", true],
+  ["transport", "🚗", "#4c8dff", "#6a5cff", true],
+  ["home", "🏠", "#a77bff", "#d061ff", true],
+  ["health", "💊", "#ff5c8a", "#ff3f5f", true],
+  ["entertainment", "🎬", "#ffc23d", "#ff8f3d", true],
+  ["other", "📦", "#8e97a8", "#5f6779", true],
+  ["coffee", "☕", "#c08457", "#8a5a3b", false],
+  ["utilities", "💡", "#facc15", "#f59e0b", false],
+  ["subscriptions", "🔁", "#38bdf8", "#6366f1", false],
+  ["clothing", "👕", "#f472b6", "#db2777", false],
+  ["pets", "🐶", "#fb923c", "#ea580c", false],
+  ["education", "📚", "#60a5fa", "#2563eb", false],
+  ["travel", "✈️", "#22d3ee", "#0891b2", false],
+  ["gifts", "🎁", "#f87171", "#dc2626", false],
+  ["personal", "💇", "#e879f9", "#a855f7", false],
+  ["kids", "🧸", "#fbbf24", "#d97706", false],
+  ["sports", "🏋️", "#4ade80", "#16a34a", false],
+  ["salary", "💼", "#34d399", "#059669", false],
+].map(([key, glyph, from, to, on]) => ({ key, glyph, from, to, on }));
+const CATALOG_BY_KEY = Object.fromEntries(CATALOG.map((c) => [c.key, c]));
 const PALETTE = [["#14b8a6", "#0891b2"], ["#f97316", "#ef4444"], ["#6366f1", "#a855f7"], ["#ec4899", "#f43f5e"], ["#84cc16", "#16a34a"], ["#0ea5e9", "#2563eb"], ["#eab308", "#f97316"]];
+export const COLORS = ["#ff5f6d", "#ff8a4c", "#f59e0b", "#eab308", "#22c58b", "#14b8a6", "#0ea5e9", "#4c8dff", "#6366f1", "#a855f7", "#ec4899", "#8e97a8"];
+export const EMOJIS = ["🍽️", "🛒", "🚗", "🏠", "💊", "🎬", "📦", "☕", "🍔", "🍕", "🍺", "⛽", "🚌", "🅿️", "💡", "📱", "🔁", "👕", "👟", "🐶", "📚", "✈️", "🏖️", "🎁", "💇", "🧸", "🏋️", "⚽", "🎮", "🎵", "💻", "🔧", "🏥", "🦷", "💼", "💰", "🏦", "❤️", "⛪", "🌱"];
 
 function categoryName(c) {
   if (!c) return t("categories.uncategorized");
   return c.name || t(`categories.default.${c.key}`);
 }
 
+/** Darker shade of a #rrggbb color, for the tile gradient. */
+function shade(hex, f = 0.72) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v) => Math.round(v * f).toString(16).padStart(2, "0");
+  return `#${c(n >> 16)}${c((n >> 8) & 255)}${c(n & 255)}`;
+}
+
 function look(c) {
   if (!c) return { glyph: "?", from: "#9aa1b4", to: "#6b7389" };
-  if (c.key && DEFAULT_LOOK[c.key]) {
-    const [glyph, from, to] = DEFAULT_LOOK[c.key];
-    return { glyph, from, to };
+  const base = c.key && CATALOG_BY_KEY[c.key];
+  let from, to;
+  if (c.color) [from, to] = [c.color, shade(c.color)];
+  else if (base) [from, to] = [base.from, base.to];
+  else {
+    let n = 0;
+    for (const ch of c.id) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+    [from, to] = PALETTE[n % PALETTE.length];
   }
-  let n = 0;
-  for (const ch of c.id) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
-  const [from, to] = PALETTE[n % PALETTE.length];
-  return { glyph: (categoryName(c).trim()[0] ?? "?").toUpperCase(), from, to };
+  const glyph = c.icon || base?.glyph || (categoryName(c).trim()[0] ?? "?").toUpperCase();
+  return { glyph, from, to };
 }
 
 function tile(c, cls = "tile") {
@@ -552,7 +581,60 @@ function viewMonth() {
         h("button", { class: "icon-btn", "aria-label": t("month.next"), onclick: () => ((state.month = shiftMonth(state.month, 1)), viewMonth()) }, icon("right")),
       ),
     ),
-    h("div", { class: "grid dash" }, h("div", { class: "grid" }, hero, inbox, chart), catCard, recentCard),
+    h("div", { class: "grid dash" }, startCard(), h("div", { class: "grid" }, hero, inbox, chart), catCard, recentCard),
+  );
+}
+
+function dismissed(key) {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Three-step start list for a new installation; disappears when done or dismissed. */
+function startCard() {
+  const steps = [
+    ["categories", live(state.categories).some((c) => c.updated_at > 0) || state.categories.size > 7, "#/ajustes"],
+    ["link", state.devices.length > 0, "#/ajustes"],
+    ["capture", liveTx().some((tx) => tx.source === "apple_pay"), null],
+    ["first", liveTx().length > 0, "#/nuevo"],
+  ];
+  if (steps.every(([, done]) => done) || dismissed("harina.start.hidden")) return null;
+  const doneCount = steps.filter(([, done]) => done).length;
+  return h(
+    "section",
+    { class: "card span start" },
+    h("div", { class: "card-head" },
+      h("div", {}, h("h2", { text: t("start.title") }), h("p", { class: "eyebrow num", text: t("start.progress", { done: doneCount, total: steps.length }) })),
+      h("button", {
+        class: "link-btn",
+        text: t("start.hide"),
+        onclick: () => {
+          try {
+            localStorage.setItem("harina.start.hidden", "1");
+          } catch {
+            // private mode: hide for this visit only
+          }
+          viewMonth();
+        },
+      }),
+    ),
+    h("div", { class: "bar" }, h("i", { width: `${(doneCount / steps.length) * 100}%`, bg: "linear-gradient(90deg, #ff9a3c, #ff4f6d, #8b5cf6)" })),
+    h(
+      "ol",
+      { class: "steps" },
+      steps.map(([key, done, href], i) =>
+        h(
+          "li",
+          { class: done ? "done" : "" },
+          h("span", { class: "step-dot" }, done ? icon("check") : String(i + 1)),
+          h("div", { class: "grow" }, h("b", { text: t(`start.${key}.title`) }), h("span", { text: t(`start.${key}.text`) })),
+          !done && href ? h("a", { class: "btn", href, text: t(`start.${key}.cta`) }) : null,
+        ),
+      ),
+    ),
   );
 }
 
@@ -866,32 +948,180 @@ function refreshBadge() {
   }
 }
 
+// ---------- iPhone linking ----------
+
+/** Deep link the iPhone camera opens: the app asks for confirmation before linking. */
+function linkUrl(code) {
+  return `harina://link?server=${encodeURIComponent(state.origin)}&code=${encodeURIComponent(code)}`;
+}
+
+/** QR code drawn as SVG nodes (no innerHTML), dark modules on white with a quiet zone. */
+function qrSvg(text) {
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + 4},${r + 4}h1v1h-1z`;
+  return s("svg", { class: "qr", viewBox: `0 0 ${n + 8} ${n + 8}`, role: "img", "aria-label": t("devices.scan"), "shape-rendering": "crispEdges" },
+    s("rect", { width: n + 8, height: n + 8, fill: "#fff", rx: 2 }), s("path", { d, fill: "#0d1121" }));
+}
+
+/** While a code is on screen, refresh when a new iPhone shows up. */
+function pollDevices(before, onchange) {
+  clearInterval(pollDevices.timer);
+  const until = Date.now() + 10 * 60 * 1000;
+  pollDevices.timer = setInterval(async () => {
+    if (Date.now() > until || location.hash !== "#/ajustes") return clearInterval(pollDevices.timer);
+    try {
+      const { devices } = await api("/api/devices");
+      if (devices.length > before) {
+        clearInterval(pollDevices.timer);
+        state.devices = devices;
+        toast(t("devices.linked"));
+        onchange();
+      }
+    } catch {
+      // keep polling; the next tick may succeed
+    }
+  }, 3000);
+}
+
+// ---------- categories ----------
+
+/** Suggestions from the catalog that are not active now. Adding one reuses its shared id. */
+function suggestionsBox(onchange) {
+  const missing = CATALOG.filter((k) => !live(state.categories).some((c) => c.key === k.key || c.id === `default-${k.key}`));
+  if (!missing.length) return null;
+  return h(
+    "div",
+    {},
+    h("p", { class: "group-title", text: t("categories.suggestions") }),
+    h(
+      "div",
+      { class: "chips wrap" },
+      missing.map((k) =>
+        h(
+          "button",
+          {
+            class: "chip",
+            onclick: () =>
+              guarded(async () => {
+                const old = state.categories.get(`default-${k.key}`);
+                await save("categories", { ...(old ?? {}), id: `default-${k.key}`, key: k.key, name: null, icon: null, color: null, deleted: false });
+                onchange();
+              }),
+          },
+          h("span", { class: "e", text: k.glyph }),
+          t(`categories.default.${k.key}`),
+          icon("plus"),
+        ),
+      ),
+    ),
+  );
+}
+
+/** Modal editor: name, emoji and color, with a live preview. `c` null creates a category. */
+function editCategory(c, onchange) {
+  const draft = { name: c ? categoryName(c) : "", icon: c ? look(c).glyph : "🏷️", color: c?.color ?? (c ? null : COLORS[7]) };
+  const preview = h("span", { class: "tile big-tile" });
+  const name = h("input", { class: "input", value: draft.name, placeholder: t("categories.newName"), "aria-label": t("categories.newName"), maxlength: "100" });
+  const drawPreview = () => {
+    const l = look({ ...(c ?? { id: "new" }), icon: draft.icon, color: draft.color, name: name.value || "?" });
+    preview.textContent = l.glyph;
+    preview.style.background = `linear-gradient(135deg, ${l.from}, ${l.to})`;
+  };
+  name.addEventListener("input", drawPreview);
+  const custom = h("input", { class: "input emoji-input", maxlength: "16", placeholder: t("categories.customEmoji"), "aria-label": t("categories.customEmoji") });
+  custom.addEventListener("input", () => {
+    if (custom.value.trim()) {
+      draft.icon = [...new Intl.Segmenter().segment(custom.value.trim())][0]?.segment ?? draft.icon;
+      drawPreview();
+    }
+  });
+  const emojiGrid = h(
+    "div",
+    { class: "emoji-grid" },
+    EMOJIS.map((e) => h("button", { type: "button", class: "emoji-opt", text: e, onclick: () => ((draft.icon = e), drawPreview()) })),
+  );
+  const swatches = h(
+    "div",
+    { class: "swatches" },
+    COLORS.map((col) =>
+      h("button", {
+        type: "button",
+        class: "swatch",
+        bg: col,
+        "aria-label": col,
+        onclick: (e) => {
+          draft.color = col;
+          for (const b of swatches.children) b.removeAttribute("aria-pressed");
+          e.currentTarget.setAttribute("aria-pressed", "true");
+          drawPreview();
+        },
+      }),
+    ),
+  );
+  const dialog = h(
+    "dialog",
+    { class: "sheet" },
+    h(
+      "form",
+      {
+        method: "dialog",
+        onsubmit: (e) => {
+          e.preventDefault();
+          const value = name.value.trim();
+          if (!value) return name.focus();
+          const keepDefaultName = c?.key && !c.name && value === categoryName(c);
+          guarded(async () => {
+            await save("categories", { ...(c ?? { id: crypto.randomUUID() }), name: keepDefaultName ? null : value, icon: draft.icon, color: draft.color, deleted: false });
+            dialog.close();
+            onchange();
+          });
+        },
+      },
+      h("div", { class: "sheet-head" }, preview, h("h2", { text: t(c ? "categories.edit" : "categories.add") })),
+      h("label", { class: "field" }, h("span", { text: t("categories.newName") }), name),
+      h("div", { class: "field" }, h("span", { text: t("categories.emoji") }), emojiGrid, custom),
+      h("div", { class: "field" }, h("span", { text: t("categories.color") }), swatches),
+      h(
+        "div",
+        { class: "actions-row" },
+        h("button", { class: "btn primary" }, icon("check"), t("form.save")),
+        c
+          ? h("button", {
+              type: "button",
+              class: "btn danger ghost",
+              onclick: () =>
+                confirm(t("categories.confirmDelete", { name: categoryName(c) })) &&
+                guarded(async () => {
+                  await save("categories", { ...c, deleted: true });
+                  dialog.close();
+                  onchange();
+                }),
+            }, icon("trash"), t("form.delete"))
+          : null,
+        h("button", { type: "button", class: "btn ghost", text: t("app.cancel"), onclick: () => dialog.close() }),
+      ),
+    ),
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  document.body.append(dialog);
+  drawPreview();
+  dialog.showModal();
+  if (!c) name.focus();
+}
+
 // ---------- settings ----------
 
 async function viewSettings() {
   const { devices } = await api("/api/devices");
+  state.devices = devices;
   const rerender = () => guarded(viewSettings);
   const codeBox = h("div");
   const row = (left, title, sub, ...right) => h("div", { class: "row" }, left, h("div", { class: "grow" }, h("b", { text: title }), sub ? h("span", { text: sub }) : null), ...right);
   const iconTile = (name, from, to) => h("span", { class: "tile sm", bg: `linear-gradient(135deg, ${from}, ${to})` }, icon(name));
-  const addForm = (placeholder, onadd) =>
-    h(
-      "div",
-      { class: "row" },
-      h(
-        "form",
-        {
-          onsubmit: (e) => {
-            e.preventDefault();
-            const input = e.target.querySelector("input");
-            if (input.value.trim()) guarded(async () => (await onadd(input.value.trim()), rerender()));
-          },
-        },
-        h("input", { class: "input", placeholder, "aria-label": placeholder }),
-        h("button", { class: "btn", "aria-label": placeholder }, icon("plus")),
-      ),
-    );
-
   render(
     h("div", { class: "page-head" }, h("h1", { text: t("settings.title") })),
     h("div", { class: "grid dash" },
@@ -903,27 +1133,15 @@ async function viewSettings() {
           live(state.categories)
             .sort((a, b) => categoryName(a).localeCompare(categoryName(b), region))
             .map((c) =>
-              row(
+              h("button", { class: "row row-btn", onclick: () => editCategory(c, rerender) },
                 tile(c, "tile sm"),
-                categoryName(c),
-                null,
-                h("button", {
-                  class: "link-btn",
-                  text: t("categories.rename"),
-                  onclick: () => {
-                    const name = prompt(t("categories.newName"), categoryName(c));
-                    if (name && name.trim()) guarded(async () => (await save("categories", { ...c, name: name.trim() }), rerender()));
-                  },
-                }),
-                h("button", {
-                  class: "link-btn danger",
-                  "aria-label": t("form.delete"),
-                  onclick: () => confirm(t("categories.confirmDelete", { name: categoryName(c) })) && guarded(async () => (await save("categories", { ...c, deleted: true }), rerender())),
-                }, icon("trash")),
+                h("div", { class: "grow" }, h("b", { text: categoryName(c) })),
+                h("span", { class: "go" }, icon("edit")),
               ),
             ),
-          addForm(t("categories.newName"), (name) => save("categories", { id: crypto.randomUUID(), name })),
+          h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editCategory(null, rerender) }, icon("plus"), t("categories.add"))),
         ),
+        suggestionsBox(rerender),
         h("p", { class: "group-title", text: t("accounts.title") }),
         h(
           "div",
@@ -987,7 +1205,15 @@ async function viewSettings() {
                 guarded(async () => {
                   const { code, expiresAt } = await api("/api/devices/link-code", { method: "POST", body: {} });
                   const time = new Intl.DateTimeFormat(region, { timeStyle: "short" }).format(new Date(expiresAt));
-                  codeBox.replaceChildren(h("div", { class: "code-box" }, h("div", { class: "code", text: code }), h("span", { text: t("devices.code", { time }) })));
+                  codeBox.replaceChildren(
+                    h("div", { class: "code-box" },
+                      qrSvg(linkUrl(code)),
+                      h("b", { text: t("devices.scan") }),
+                      h("div", { class: "code", text: code }),
+                      h("span", { text: t("devices.code", { time }) }),
+                    ),
+                  );
+                  pollDevices(devices.length, rerender);
                 }),
             }, icon("link"), t("devices.newCode")),
           ),
@@ -1079,7 +1305,10 @@ async function boot() {
   if (session.setupNeeded) return viewSetup();
   if (!session.authenticated) return viewLogin();
   for (const k of ["accounts", "categories", "transactions"]) state[k].clear();
-  await guarded(loadAll);
+  await guarded(async () => {
+    await loadAll();
+    state.devices = (await api("/api/devices")).devices;
+  });
   shell();
   router();
 }

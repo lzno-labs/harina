@@ -12,7 +12,6 @@ struct SettingsView: View {
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt) private var movements: [Movement]
     @AppStorage("defaultCurrency") private var defaultCurrency = "CRC"
     @AppStorage("appLock") private var appLock = true
-    @State private var newCategory = ""
     @State private var newAccount = ""
     @State private var newCard = ""
 
@@ -40,25 +39,17 @@ struct SettingsView: View {
                 }
             }
             Section("categories.title") {
-                ForEach(categories.sorted { $0.displayName < $1.displayName }) { c in
+                NavigationLink {
+                    ScrollView { CategoriesGrid().padding(16) }
+                        .background(Theme.background)
+                        .navigationTitle("categories.title")
+                } label: {
                     HStack(spacing: 12) {
-                        Tile(look: Looks.of(c), size: 32)
-                        Text(c.displayName)
-                    }
-                }
-                .onDelete { idx in
-                    let sorted = categories.sorted { $0.displayName < $1.displayName }
-                    for i in idx { sorted[i].deleted = true; sorted[i].updatedAt = SyncRules.now(); sorted[i].dirty = true }
-                    saveAndSync()
-                }
-                HStack {
-                    TextField("categories.newName", text: $newCategory)
-                    Button("categories.add") {
-                        let name = newCategory.trimmingCharacters(in: .whitespaces)
-                        guard !name.isEmpty else { return }
-                        context.insert(CategoryItem(CategoryDTO(id: UUID().uuidString, name: String(name.prefix(100)), updated_at: SyncRules.now()), dirty: true))
-                        newCategory = ""
-                        saveAndSync()
+                        IconTile(systemName: "square.grid.2x2.fill", colors: Theme.brandColors, size: 32)
+                        VStack(alignment: .leading) {
+                            Text("categories.manage")
+                            Text("categories.count \(categories.count)").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -95,6 +86,7 @@ struct SettingsView: View {
             Section {
                 ShareLink(item: exportFile()) { Label("settings.export", systemImage: "square.and.arrow.up") }
                 Toggle("settings.appLock", isOn: $appLock)
+                Button("settings.replayOnboarding") { UserDefaults.standard.set(false, forKey: "onboarded") }
             } header: {
                 Text("settings.data")
             } footer: {

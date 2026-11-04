@@ -7,6 +7,17 @@ import SwiftUI
 struct RootView: View {
     @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
     @State private var tab = 0
+    @State private var celebrate: Movement?
+    @AppStorage("firstCaptureSeen") private var firstCaptureSeen = false
+
+    private var applePayCount: Int { movements.filter { $0.source == "apple_pay" }.count }
+
+    /// The first automatic payment gets its moment (once).
+    private func checkFirstCapture() {
+        guard !firstCaptureSeen, let first = movements.filter({ $0.source == "apple_pay" }).min(by: { $0.occurredAt < $1.occurredAt }) else { return }
+        firstCaptureSeen = true
+        celebrate = first
+    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -28,6 +39,9 @@ struct RootView: View {
                 .tag(4)
         }
         .tint(Color(hex: 0xFF4F6D))
+        .onAppear(perform: checkFirstCapture)
+        .onChange(of: applePayCount) { _, _ in checkFirstCapture() }
+        .sheet(item: $celebrate) { FirstCaptureView(movement: $0).environmentObject(SyncService.shared) }
     }
 }
 
@@ -89,6 +103,7 @@ struct MonthView: View {
         ScrollView {
             VStack(spacing: 16) {
                 header
+                FirstWeekCard()
                 hero(spent: spent, earned: earned)
                 if pending > 0 { reviewBanner(pending) }
                 PaceCard(month: month, currency: cur, movements: movements)
