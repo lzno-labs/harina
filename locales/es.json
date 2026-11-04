@@ -3,12 +3,18 @@
     "name": "harina",
     "tagline": "Tus gastos e ingresos en colones y dólares, con los pagos de Apple Pay anotados solos.",
     "loading": "Cargando…",
-    "offline": "Sin conexión. Revisa tu red y vuelve a intentar."
+    "offline": "Sin conexión. Revisa tu red y vuelve a intentar.",
+    "greeting": {
+      "morning": "Buenos días",
+      "afternoon": "Buenas tardes",
+      "evening": "Buenas noches"
+    }
   },
   "nav": {
-    "month": "Mes",
+    "month": "Resumen",
+    "movements": "Movimientos",
     "add": "Anotar",
-    "review": "Por revisar",
+    "review": "Revisar",
     "settings": "Ajustes",
     "logout": "Salir"
   },
@@ -16,22 +22,47 @@
     "title": "Configura harina",
     "intro": "Es la primera vez que se abre esta instalación. Escribe el código de configuración y crea tu llave de acceso (passkey). Solo tú podrás entrar.",
     "token": "Código de configuración",
-    "create": "Crear llave de acceso"
+    "create": "Crear llave de acceso",
+    "features": {
+      "applePay": "Tus pagos con Apple Pay se anotan solos",
+      "currencies": "Colones y dólares, cada uno por su lado",
+      "private": "Sin banco, sin IA, sin anuncios"
+    }
   },
   "login": {
     "title": "Entra a harina",
-    "button": "Entrar con llave de acceso"
+    "button": "Entrar con llave de acceso",
+    "subtitle": "Tus finanzas, claras y en un solo lugar."
   },
   "month": {
-    "title": "Resumen del mes",
+    "title": "Resumen",
     "previous": "Mes anterior",
     "next": "Mes siguiente",
     "spent": "Gastado",
     "earned": "Ingresado",
-    "byCategory": "Por categoría",
+    "byCategory": "En qué se va",
     "movements": "Movimientos",
     "empty": "Todavía no hay movimientos este mes.",
-    "toReview": "{count} por revisar"
+    "toReview": "{count} por revisar",
+    "spentIn": "Gastado en {month}",
+    "income": "Ingresos",
+    "balance": "Balance",
+    "vsLess": "{pct} menos que {month} a esta fecha",
+    "vsMore": "{pct} más que {month} a esta fecha",
+    "vsSame": "Igual que {month} a esta fecha",
+    "vsNone": "Primer mes con gastos",
+    "pace": "Ritmo del mes",
+    "thisMonth": "Este mes",
+    "lastMonth": "Mes anterior",
+    "ofTotal": "{pct} del total",
+    "recent": "Últimos movimientos",
+    "seeAll": "Ver todos",
+    "reviewTitle": "{count} por revisar",
+    "reviewSub": "Ponles categoría con un toque",
+    "currency": "Moneda",
+    "emptyTitle": "Mes en blanco",
+    "today": "Hoy",
+    "yesterday": "Ayer"
   },
   "form": {
     "titleNew": "Anotar movimiento",
@@ -53,14 +84,23 @@
     "confirmDelete": "¿Borrar este movimiento?",
     "saved": "Guardado.",
     "suggested": "Sugerida: {category}",
-    "invalidAmount": "Escribe un monto válido, por ejemplo 4500 o 12,50."
+    "invalidAmount": "Escribe un monto válido, por ejemplo 4500 o 12,50.",
+    "amountPlaceholder": "0",
+    "tapToChange": "Cambiar moneda",
+    "more": "Más detalles",
+    "suggestedShort": "Sugerida",
+    "saveExpense": "Guardar gasto",
+    "saveIncome": "Guardar ingreso"
   },
   "review": {
     "title": "Por revisar",
-    "intro": "Pagos sin categoría o con un monto que harina no pudo leer.",
-    "empty": "Nada por revisar.",
+    "intro": "Pagos de Apple Pay sin categoría o con un monto que harina no pudo leer. Un toque y listo.",
+    "empty": "No hay nada por revisar. Cada pago nuevo con Apple Pay aparece aquí.",
     "apply": "Usar {category}",
-    "rawAmount": "Monto recibido: {raw}"
+    "rawAmount": "Monto recibido: {raw}",
+    "emptyTitle": "Todo al día",
+    "left": "{count} pendientes",
+    "fixAmount": "Revisar monto"
   },
   "source": {
     "manual": "Manual",
@@ -80,7 +120,8 @@
       "health": "Salud",
       "entertainment": "Entretenimiento",
       "other": "Otros"
-    }
+    },
+    "uncategorized": "Sin categoría"
   },
   "accounts": {
     "title": "Cuentas",
@@ -88,7 +129,8 @@
     "name": "Nombre de la cuenta",
     "card": "Tarjeta que reporta el atajo (opcional)",
     "cardHint": "Escribe el nombre exacto de la tarjeta como lo muestra Wallet, por ejemplo «BAC Visa». Así harina asigna sola esta cuenta a esos pagos.",
-    "confirmDelete": "¿Borrar la cuenta «{name}»? Los movimientos quedan sin cuenta."
+    "confirmDelete": "¿Borrar la cuenta «{name}»? Los movimientos quedan sin cuenta.",
+    "cardShort": "Tarjeta en Wallet (opcional)"
   },
   "devices": {
     "title": "iPhone vinculados",
@@ -145,5 +187,21 @@
     "invalid_link_code": "El código de vinculación no es válido o ya venció.",
     "invalid_record": "Algún dato no es válido.",
     "too_many_records": "Demasiados cambios a la vez."
+  },
+  "movements": {
+    "title": "Movimientos",
+    "search": "Buscar comercio, nota o categoría",
+    "all": "Todos",
+    "expenses": "Gastos",
+    "incomes": "Ingresos",
+    "applePay": "Apple Pay",
+    "empty": "No hay movimientos que coincidan.",
+    "count": "{count} movimientos"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "sync": "iPhone y sincronización",
+    "security": "Seguridad",
+    "account": "Sesión"
   }
 }
