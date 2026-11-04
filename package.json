@@ -1,0 +1,25 @@
+{
+  "name": "harina",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal finance app: log spending and income in colones and dollars, with Apple Pay payments captured by an iPhone shortcut. No bank connection.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/node.js",
+    "test": "node --disable-warning=ExperimentalWarning --test 'tests/*.test.js'",
+    "lint": "eslint . && node scripts/check-i18n.js",
+    "reset-passkeys": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli.js reset-passkeys"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "13.3.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "eslint": "9.39.1",
+    "globals": "16.5.0"
+  }
+}

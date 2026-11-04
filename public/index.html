@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title data-i18n="app.name">harina</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top" hidden>
+    <strong class="brand" data-i18n="app.name">harina</strong>
+    <nav>
+      <a href="#/" data-i18n="nav.month"></a>
+      <a href="#/nuevo" data-i18n="nav.add"></a>
+      <a href="#/revisar" data-i18n="nav.review"></a>
+      <a href="#/ajustes" data-i18n="nav.settings"></a>
+    </nav>
+  </header>
+  <main id="main" aria-live="polite"></main>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>

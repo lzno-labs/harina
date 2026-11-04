@@ -1,0 +1,26 @@
+// Fails when the iOS app uses a localization key that is missing in es.lproj/Localizable.strings.
+import { readFileSync, readdirSync } from "node:fs";
+
+const dir = "ios/Harina/Resources/es.lproj";
+const strings = readFileSync(`${dir}/Localizable.strings`, "utf8") + readFileSync(`${dir}/AppShortcuts.strings`, "utf8");
+const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace("${applicationName}", "%@")));
+const errors = [];
+for (const f of readdirSync("ios/Harina", { recursive: true }).filter((p) => p.endsWith(".swift"))) {
+  const src = readFileSync(`ios/Harina/${f}`, "utf8");
+  // Literal keys look like "area.name", optionally with one interpolation: "area.name \(x)".
+  for (const m of src.matchAll(/(systemImage: |systemName: |L\()?"([a-z]+\.[a-zA-Z.]+)( \\\([^)]*\)+)?"/g)) {
+    if (m[1]) continue; // SF Symbols, and run-time keys checked below
+    m.splice(1, 1);
+    const key = m[1] + (m[2] ? " %@" : "");
+    if (/^(app\.lzno|harina\.|api\.)/.test(m[1])) continue;
+    if (!defined.has(key)) errors.push(`ios/Harina/${f}: missing "${key}"`);
+  }
+  for (const m of src.matchAll(/L\("([a-z.]+)" \+/g)) {
+    if (![...defined].some((k) => k.startsWith(m[1]))) errors.push(`ios/Harina/${f}: no keys start with "${m[1]}"`);
+  }
+}
+if (errors.length) {
+  console.error(errors.join("\n"));
+  process.exit(1);
+}
+console.log(`ios strings: ok (${defined.size} keys)`);
