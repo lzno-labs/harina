@@ -287,3 +287,4 @@
 "auto.noneYet" = "todavía ninguno";
 
 "intent.record.savedAuto %@ %@" = "Anotado: %1$@ en %2$@";
+"auto.na" = "sin datos";

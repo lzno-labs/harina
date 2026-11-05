@@ -10,6 +10,9 @@ export function configFromEnv(env = process.env) {
     dbPath: env.HARINA_DB || "./data/harina.sqlite",
     setupToken: env.HARINA_SETUP_TOKEN || "",
     coreSha: env.LZNO_CORE_SHA || "dev",
+    cimd: env.HARINA_OAUTH_CIMD || "on",
+    mcpOrigins: env.HARINA_MCP_ORIGINS || "",
+    timeZone: env.HARINA_TZ || "America/Costa_Rica",
   };
 }
 

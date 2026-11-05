@@ -1223,10 +1223,50 @@ function editCategory(c, onchange) {
   if (!c) name.focus();
 }
 
+/** Assistants connected over MCP: address to add, list with permissions, revoke. */
+function connectionsGroup(connections, onchange) {
+  const mcpUrl = `${state.origin}/mcp`;
+  const fmt = (ms) => new Intl.DateTimeFormat(region, { dateStyle: "medium" }).format(new Date(ms));
+  return h(
+    "div",
+    {},
+    h("p", { class: "group-title", text: t("connections.title") }),
+    h(
+      "div",
+      { class: "group" },
+      h("div", { class: "row" },
+        h("span", { class: "tile sm", bg: "linear-gradient(135deg, #ff9a3c, #ff4f6d)" }, icon("link")),
+        h("div", { class: "grow" }, h("span", { text: t("connections.intro") }), h("b", { class: "mono", text: mcpUrl })),
+        h("button", {
+          class: "link-btn",
+          text: t("connections.copy"),
+          onclick: () => navigator.clipboard?.writeText(mcpUrl).then(() => toast(t("connections.copied")), () => {}),
+        }),
+      ),
+      connections.length
+        ? connections.map((c) =>
+            h("div", { class: "row" },
+              h("span", { class: "tile sm", bg: "linear-gradient(135deg, #8b5cf6, #6366f1)", text: (c.client_name || "?").slice(0, 1).toUpperCase() }),
+              h("div", { class: "grow" },
+                h("b", { text: c.client_name || t("connect.unknownClient") }),
+                h("span", { text: [c.host, c.scopes.map((x) => t(x === "harina.write" ? "connections.write" : "connections.read")).join(" + "), c.last_used_at ? t("connections.lastUsed", { date: fmt(c.last_used_at) }) : t("connections.since", { date: fmt(c.created_at) })].filter(Boolean).join(" · ") }),
+              ),
+              h("button", {
+                class: "link-btn danger",
+                text: t("connections.revoke"),
+                onclick: () => confirm(t("connections.confirmRevoke", { name: c.client_name || t("connect.unknownClient") })) && guarded(async () => (await api(`/api/connections/${c.id}`, { method: "DELETE" }), onchange())),
+              }),
+            ),
+          )
+        : h("div", { class: "row" }, h("span", { class: "muted", text: t("connections.empty") })),
+    ),
+  );
+}
+
 /** What the decision model learned, in numbers (it acts on the iPhone, where payments arrive). */
 function autoCategoryGroup() {
   const { calibration, stats } = insights();
-  const pct = (x) => (x === null || x === undefined ? "–" : fmtPct(x));
+  const pct = (x) => (x === null || x === undefined ? t("auto.na") : fmtPct(x));
   const rows = [
     [t("auto.history"), calibration.cases ? t("auto.historyValue", { pct: pct(calibration.accuracy), cases: calibration.cases }) : t("auto.learning")],
     [t("auto.threshold"), calibration.threshold === null ? t("auto.notYet") : t("auto.thresholdValue", { pct: pct(calibration.threshold), coverage: pct(calibration.coverage) })],
@@ -1246,7 +1286,7 @@ function autoCategoryGroup() {
 // ---------- settings ----------
 
 async function viewSettings() {
-  const { devices } = await api("/api/devices");
+  const [{ devices }, { connections }] = await Promise.all([api("/api/devices"), api("/api/connections")]);
   state.devices = devices;
   const rerender = () => guarded(viewSettings);
   const codeBox = h("div");
@@ -1310,6 +1350,7 @@ async function viewSettings() {
       ),
       h("div", {},
         autoCategoryGroup(),
+        connectionsGroup(connections, rerender),
         h("p", { class: "group-title", text: t("settings.sync") }),
         h(
           "div",
@@ -1424,6 +1465,48 @@ function onRoute() {
   router();
 }
 
+// ---------- connecting an assistant (OAuth consent, docs/adr/0004-oauth-and-mcp.md) ----------
+
+/** Full-screen consent page, shown before the app shell: who asks, what it can do, allow or deny. */
+async function viewConsent(id) {
+  if (id.startsWith("error/")) {
+    const key = id === "error/request_expired" ? "connect.expired" : "connect.badRequest";
+    return authScreen(h("h1", { text: t("connect.title") }), h("p", { text: t(key) }));
+  }
+  let info;
+  try {
+    info = await api(`/api/oauth/requests/${encodeURIComponent(id)}`);
+  } catch (e) {
+    if (e instanceof ApiError && e.message === "unauthorized") return viewLogin();
+    return authScreen(h("h1", { text: t("connect.title") }), h("p", { text: t("connect.expired") }));
+  }
+  const name = info.client.name || t("connect.unknownClient");
+  const wantsWrite = info.scopes.includes("harina.write");
+  const write = h("input", { type: "checkbox", id: "write" });
+  const decide = (approve) =>
+    guarded(async () => {
+      const { redirect } = await api("/api/oauth/decision", { method: "POST", body: { id, approve, write: approve && write.checked } });
+      app.replaceChildren(h("div", { class: "auth" }, h("p", { text: t("connect.redirecting") })));
+      location.assign(redirect);
+    });
+  authScreen(
+    h("h1", { text: t("connect.title") }),
+    h("p", {}, h("b", { text: t("connect.intro", { client: name }) }), h("br"), h("span", { class: "muted-host", text: t("connect.from", { host: info.client.host }) })),
+    h(
+      "div",
+      { class: "feature-list" },
+      h("div", {}, h("span", { class: "tile", bg: "linear-gradient(135deg, #22c58b, #0ea5a4)" }, icon("check")), t("connect.canRead")),
+      wantsWrite ? h("label", { class: "consent-write", for: "write" }, write, h("span", { text: t("connect.canWrite") })) : null,
+      h("div", {}, h("span", { class: "tile", bg: "linear-gradient(135deg, #8b5cf6, #6366f1)" }, icon("shield")), t("connect.never")),
+    ),
+    h("p", { class: "consent-warning", text: t("connect.warning") }),
+    h("div", { class: "actions-row" },
+      h("button", { class: "btn primary", onclick: () => decide(true) }, icon("check"), t("connect.allow")),
+      h("button", { class: "btn ghost", onclick: () => decide(false), text: t("connect.deny") }),
+    ),
+  );
+}
+
 async function boot() {
   main = null;
   app.replaceChildren(h("div", { class: "auth" }, h("div", { class: "auth-card" }, h("div", { class: "logo" }, logo()), h("p", { text: t("app.loading") }))));
@@ -1435,7 +1518,10 @@ async function boot() {
   }
   state.origin = session.origin;
   if (session.setupNeeded) return viewSetup();
+  const consent = (location.hash || "").match(/^#\/autorizar\/(.+)$/)?.[1];
+  if (consent?.startsWith("error/")) return viewConsent(consent);
   if (!session.authenticated) return viewLogin();
+  if (consent) return viewConsent(consent);
   for (const k of ["accounts", "categories", "transactions"]) state[k].clear();
   await guarded(async () => {
     await loadAll();
