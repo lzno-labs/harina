@@ -302,9 +302,11 @@ function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 }
 
+// Clients must request exactly the scopes in this challenge (MCP authorization spec), so both are
+// offered here; the consent page keeps writing optional and unchecked.
 function challenge(cfg, extra = "") {
   const metadata = `${cfg.origin}/.well-known/oauth-protected-resource/mcp`;
-  return `Bearer resource_metadata="${metadata}", scope="harina.read"${extra}`;
+  return `Bearer resource_metadata="${metadata}", scope="harina.read harina.write"${extra}`;
 }
 
 /** Handles /mcp. Returns a Response. */

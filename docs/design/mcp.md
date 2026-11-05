@@ -23,7 +23,7 @@ The person adds `https://<their harina>/mcp` as a connector in Claude, ChatGPT o
 
 - **Both protocol eras.** Clients that start with `initialize` (2025-06-18, 2025-11-25) get the legacy behavior: version negotiation in `initialize`, `notifications/*` answered 202. Clients on 2026-07-28 send the version in `_meta` and the `MCP-Protocol-Version` header; harina implements `server/discover`, checks that headers match the body (`-32020`) and answers unknown versions with `-32022` and the supported list.
 - **Origin:** a request with an `Origin` header that is not harina's own origin (or one listed in `HARINA_MCP_ORIGINS`) is refused with 403.
-- **Auth:** `Authorization: Bearer` only. Missing or invalid token: 401 with the `WWW-Authenticate` challenge. A write tool without `harina.write`: 403 `insufficient_scope` so the client can ask for more.
+- **Auth:** `Authorization: Bearer` only. Missing or invalid token: 401 with the `WWW-Authenticate` challenge, `scope="harina.read harina.write"`. Clients must request exactly the challenged scopes, so offering only `harina.read` there (the first version, and the example in ADR-0004) meant the consent page never got to offer writing; writing stays an unchecked, optional switch on that page. A write tool without `harina.write`: 403 `insufficient_scope` so the client can ask for more.
 
 ### Tools
 
