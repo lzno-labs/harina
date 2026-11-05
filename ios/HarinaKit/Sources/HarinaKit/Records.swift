@@ -15,17 +15,20 @@ public struct TransactionDTO: Codable, Equatable, Sendable {
     public var source: String
     public var raw_amount: String?
     public var needs_review: Int?
+    /// 0 set by the person, 1 set automatically, 2 automatic then corrected.
+    public var category_auto: Int?
     public var occurred_at: String
     public var updated_at: Int64
     public var deleted: Int?
 
     public init(id: String, kind: String, amount_minor: Int64, currency: String, category_id: String? = nil,
                 account_id: String? = nil, merchant: String? = nil, note: String? = nil, card: String? = nil,
-                source: String, raw_amount: String? = nil, needs_review: Int? = 0, occurred_at: String,
-                updated_at: Int64, deleted: Int? = 0) {
+                source: String, raw_amount: String? = nil, needs_review: Int? = 0, category_auto: Int? = 0,
+                occurred_at: String, updated_at: Int64, deleted: Int? = 0) {
         self.id = id; self.kind = kind; self.amount_minor = amount_minor; self.currency = currency
         self.category_id = category_id; self.account_id = account_id; self.merchant = merchant; self.note = note
         self.card = card; self.source = source; self.raw_amount = raw_amount; self.needs_review = needs_review
+        self.category_auto = category_auto
         self.occurred_at = occurred_at; self.updated_at = updated_at; self.deleted = deleted
     }
 }

@@ -133,3 +133,92 @@ final class OnboardingLogicTests: XCTestCase {
         XCTAssertEqual(c.color, "#16a34a")
     }
 }
+
+/// Same answers as public/insights.js on the shared fixture (tests/fixtures/insights.json).
+final class InsightsParityTests: XCTestCase {
+    struct Fixture: Decodable {
+        struct Pred: Decodable { let band: String; let categoryId: String?; let confidence: Double }
+        struct Cal: Decodable { let threshold: Double?; let cases: Int; let accuracy: Double?; let coverage: Double }
+        struct Change: Decodable { let from: Int64; let to: Int64 }
+        struct Rec: Decodable {
+            let key: String, cadence: String, period: Int, count: Int, confidence: String, next: String, status: String
+            let priceChange: Change?, amount: Int64, monthly: Int64, daysToNext: Int
+        }
+        struct Proj: Decodable { let spent: Int64; let fixedRemaining: Int64; let dailyVariable: Int64; let projected: Int64 }
+        struct Expected: Decodable {
+            let calibration: Cal, predictions: [Pred], recurring: [Rec]
+            let projection: [String: Proj?]
+        }
+        let now: String
+        let transactions: [TransactionDTO]
+        let expected: Expected
+    }
+
+    static let queries = [
+        DecisionState(merchant: "Automercado Escazú", card: "BAC Visa", amountMinor: 2_500_000, currency: "CRC"),
+        DecisionState(merchant: "AUTOMERCADO ESCAZU", card: "BAC Visa", amountMinor: 900_000, currency: "CRC"),
+        DecisionState(merchant: "Soda Tapia", card: "BAC Visa", amountMinor: 650_000, currency: "CRC"),
+        DecisionState(merchant: "Uber", card: "BAC Visa", amountMinor: 420_000, currency: "CRC"),
+        DecisionState(merchant: "Automercado Santa Ana", card: "BAC Visa", amountMinor: 3_000_000, currency: "CRC"),
+        DecisionState(merchant: "Ferretería EPA", card: "BAC Visa", amountMinor: 1_800_000, currency: "CRC"),
+    ]
+
+    func load() throws -> Fixture {
+        // ios/HarinaKit/Tests/HarinaKitTests/<this file> → repository root → tests/fixtures
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: root.appendingPathComponent("tests/fixtures/insights.json")))
+    }
+
+    func testDecisionModelMatchesTheWeb() throws {
+        let f = try load()
+        let active = Set(f.transactions.compactMap(\.category_id))
+        let cal = CategoryModel.calibrate(f.transactions, active: active)
+        XCTAssertEqual(cal.threshold, f.expected.calibration.threshold)
+        XCTAssertEqual(cal.cases, f.expected.calibration.cases)
+        XCTAssertEqual(cal.accuracy ?? -1, f.expected.calibration.accuracy ?? -1, accuracy: 1e-6)
+        XCTAssertEqual(cal.coverage, f.expected.calibration.coverage, accuracy: 1e-6)
+        let model = CategoryModel.train(f.transactions, active: active)
+        for (q, want) in zip(Self.queries, f.expected.predictions) {
+            let d = model.decide(cal, q)
+            XCTAssertEqual(d.band.rawValue, want.band, q.merchant ?? "")
+            XCTAssertEqual(d.categoryId, want.categoryId, q.merchant ?? "")
+            XCTAssertEqual(d.confidence, want.confidence, accuracy: 1e-6, q.merchant ?? "")
+        }
+    }
+
+    func testRecurringAndProjectionMatchTheWeb() throws {
+        let f = try load()
+        let now = try XCTUnwrap(ISODate.date(f.now))
+        let rec = Insights.recurring(f.transactions, now: now)
+        XCTAssertEqual(rec.map(\.key), f.expected.recurring.map(\.key))
+        for (r, w) in zip(rec, f.expected.recurring) {
+            XCTAssertEqual(r.cadence.rawValue, w.cadence, w.key)
+            XCTAssertEqual(r.period, w.period, w.key)
+            XCTAssertEqual(r.count, w.count, w.key)
+            XCTAssertEqual(r.sure ? "sure" : "likely", w.confidence, w.key)
+            XCTAssertEqual(r.next, w.next, w.key)
+            XCTAssertEqual(r.status.rawValue, w.status, w.key)
+            XCTAssertEqual(r.priceChange, w.priceChange.map { PriceChange(from: $0.from, to: $0.to) }, w.key)
+            XCTAssertEqual(r.amount, w.amount, w.key)
+            XCTAssertEqual(r.monthly, w.monthly, w.key)
+            XCTAssertEqual(r.daysToNext, w.daysToNext, w.key)
+        }
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        for cur in ["CRC", "USD"] {
+            let p = Insights.projectMonth(f.transactions, recurring: rec, currency: cur, now: now, calendar: utc)
+            let w = f.expected.projection[cur] ?? nil
+            XCTAssertEqual(p?.spent, w?.spent, cur)
+            XCTAssertEqual(p?.fixedRemaining, w?.fixedRemaining, cur)
+            XCTAssertEqual(p?.dailyVariable, w?.dailyVariable, cur)
+            XCTAssertEqual(p?.projected, w?.projected, cur)
+        }
+    }
+
+    func testPriceChange() {
+        XCTAssertEqual(Insights.priceChange([699, 699, 699, 799]), PriceChange(from: 699, to: 799))
+        XCTAssertNil(Insights.priceChange([699, 799, 799, 799]))
+        XCTAssertNil(Insights.priceChange([2600, 2800, 2700, 2900]))
+    }
+}

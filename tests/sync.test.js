@@ -124,3 +124,14 @@ test("categories carry an optional emoji and color; suggestions converge by id",
   assert.equal(byId.c1.color, "#16a34a");
   assert.equal(records.categories.filter((c) => c.id === "default-food").length, 1);
 });
+
+test("category_auto syncs as 0, 1 or 2", async () => {
+  const { call, login } = await setup();
+  const h = await login();
+  const push = (extra) => call("/api/sync", { method: "POST", headers: h, body: { changes: { transactions: [tx({ updated_at: Date.now(), ...extra })] } } });
+  assert.equal((await push({ category_auto: 3 })).status, 400);
+  const r = await (await push({ category_auto: 1, category_id: "default-food" })).json();
+  assert.equal(r.records.transactions[0].category_auto, 1);
+  const r2 = await (await push({ id: "tx-2" })).json();
+  assert.equal(r2.records.transactions[0].category_auto, 0);
+});

@@ -63,7 +63,8 @@
     "currency": "Moneda",
     "emptyTitle": "Mes en blanco",
     "today": "Hoy",
-    "yesterday": "Ayer"
+    "yesterday": "Ayer",
+    "projection": "A este ritmo cierras el mes en {amount} (estimado)"
   },
   "form": {
     "titleNew": "Anotar movimiento",
@@ -191,7 +192,8 @@
       "card": "tarjeta",
       "source": "origen",
       "needs_review": "por_revisar",
-      "id": "id"
+      "id": "id",
+      "category_auto": "categoria_automatica"
     }
   },
   "errors": {
@@ -247,5 +249,41 @@
       "text": "Un gasto o ingreso, en menos de 10 segundos.",
       "cta": "Anotar"
     }
+  },
+  "fixed": {
+    "title": "Fijos",
+    "subtitle": "Cobros que se repiten, detectados solos",
+    "perMonth": "al mes en {count} cobros fijos",
+    "monthlyTotal": "Fijos al mes en {currency}",
+    "yearlyTotal": "{amount} al año",
+    "attention": "Para revisar",
+    "upcoming": "Próximos cobros",
+    "weekly": "cada semana",
+    "monthly": "cada mes",
+    "yearly": "cada año",
+    "likely": "probable",
+    "today": "hoy",
+    "tomorrow": "mañana",
+    "inDays": "en {days} días",
+    "on": "el {date}",
+    "missed": "no se cobró el {date}",
+    "priceUp": "antes {from}",
+    "emptyTitle": "Todavía no hay fijos",
+    "empty": "Cuando un mismo comercio te cobre parecido dos veces con un mes (o una semana, o un año) de diferencia, aparece aquí solo.",
+    "how": "harina detecta los cobros que se repiten con el mismo comercio y un monto parecido. «Probable» significa que solo vio dos cobros."
+  },
+  "auto": {
+    "title": "Categoría automática",
+    "intro": "En el iPhone, harina categoriza sola los pagos de comercios que ya categorizaste, cuando en tu historial acierta al menos 95 de cada 100. Corre en tu dispositivo, sin IA externa.",
+    "mark": "Categoría puesta por harina",
+    "history": "En tu historial",
+    "historyValue": "acierta {pct} ({cases} pagos revisados en orden)",
+    "learning": "todavía aprendiendo de tus categorías",
+    "threshold": "Cuándo actúa sola",
+    "thresholdValue": "con confianza desde {pct}; cubre {coverage} de los comercios conocidos",
+    "notYet": "todavía no: necesita al menos 20 casos con ese acierto",
+    "live": "En uso real",
+    "liveValue": "{kept} se quedaron como las puso, {corrected} corregidas ({pct})",
+    "noneYet": "todavía no ha categorizado ningún pago"
   }
 }

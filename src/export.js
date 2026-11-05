@@ -37,7 +37,7 @@ export async function exportCsv(db, lang = "es") {
   const data = await exportJson(db);
   const cat = new Map(data.categories.map((c) => [c.id, c.name ?? lookup(lang, `categories.default.${c.key}`) ?? c.key]));
   const acc = new Map(data.accounts.map((a) => [a.id, a.name]));
-  const cols = ["date", "kind", "amount", "currency", "category", "account", "merchant", "note", "card", "source", "needs_review", "id"];
+  const cols = ["date", "kind", "amount", "currency", "category", "account", "merchant", "note", "card", "source", "needs_review", "category_auto", "id"];
   const lines = [cols.map((c) => csvCell(lookup(lang, `export.columns.${c}`))).join(",")];
   for (const t of data.transactions) {
     lines.push(
@@ -53,6 +53,7 @@ export async function exportCsv(db, lang = "es") {
         t.card,
         lookup(lang, `source.${t.source}`),
         t.needs_review ? 1 : 0,
+        t.category_auto ?? 0,
         t.id,
       ]
         .map(csvCell)
