@@ -1,0 +1,3 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+"NSFaceIDUsageDescription" = "harina usa Face ID para que solo tú veas tus finanzas.";
+"CFBundleDisplayName" = "harina";

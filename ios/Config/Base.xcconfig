@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: MPL-2.0
+// Build settings for anyone building harina. Signing is per person: put your team and bundle id
+// in Config/Signing.xcconfig (not committed in the open repo), for example:
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   HARINA_BUNDLE_ID = com.yourname.harina
+HARINA_BUNDLE_ID = org.example.harina
+CODE_SIGN_STYLE = Automatic
+// Info.plist text shown by iOS before the first Face ID prompt (Spanish, the app's language).
+HARINA_FACE_ID_TEXT = harina usa Face ID para que solo tú veas tus finanzas.
+#include? "Signing.xcconfig"

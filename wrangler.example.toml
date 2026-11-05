@@ -1,0 +1,26 @@
+# Example Cloudflare Workers configuration for self-hosting harina on Cloudflare.
+# Copy to wrangler.toml and fill in your own D1 database ID and origin. Nothing here is required
+# to run harina elsewhere: `npm start` runs it on any machine with Node and SQLite.
+name = "harina"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+preview_urls = false
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "harina"
+database_id = "<your-d1-database-id>"
+migrations_dir = "migrations"
+
+[vars]
+HARINA_ORIGIN = "https://harina.example.org"
+
+# Secret, set with: npx wrangler secret put HARINA_SETUP_TOKEN
+# LZNO_CORE_SHA (or any build id) can be passed with --var at deploy time; /health shows it.

@@ -1,0 +1,13 @@
+node_modules/
+.env
+.wrangler/
+data/
+*.sqlite
+*.sqlite-*
+.DS_Store
+ios/build/
+ios/*.xcodeproj/
+ios/HarinaKit/.build/
+xcuserdata/
+ios/Harina/Info.plist
+ios/Config/Signing.xcconfig

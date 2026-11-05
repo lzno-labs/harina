@@ -1,0 +1,251 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+/* Every visible text of the iOS app. Spanish is the development language; another language is a new .lproj folder. */
+
+"tab.month" = "Resumen";
+"tab.movements" = "Movimientos";
+"tab.add" = "Anotar";
+"tab.review" = "Por revisar";
+"tab.settings" = "Ajustes";
+
+"lock.reason" = "Abre harina";
+"lock.unlock" = "Desbloquear";
+
+"greeting.morning" = "Buenos días";
+"greeting.afternoon" = "Buenas tardes";
+"greeting.evening" = "Buenas noches";
+
+"month.title" = "Resumen";
+"month.previous" = "Mes anterior";
+"month.next" = "Mes siguiente";
+"month.spent %@" = "Gastado %@";
+"month.earned %@" = "Ingresado %@";
+"month.empty" = "Todavía no hay movimientos este mes.";
+"month.byCategory" = "En qué se va";
+"month.movements" = "Movimientos";
+"month.spentIn %@" = "Gastado en %@";
+"month.income" = "Ingresos";
+"month.balance" = "Balance";
+"month.vsLess %@ %@" = "%1$@ menos que %2$@ a esta fecha";
+"month.vsMore %@ %@" = "%1$@ más que %2$@ a esta fecha";
+"month.vsNone" = "Primer mes con gastos";
+"month.pace" = "Ritmo del mes";
+"month.thisMonth" = "Este mes";
+"month.lastMonth" = "Mes anterior";
+"month.recent" = "Últimos movimientos";
+"month.seeAll" = "Ver todos";
+"month.reviewTitle %lld" = "%lld por revisar";
+"month.reviewSub" = "Ponles categoría con un toque";
+"month.emptyTitle" = "Mes en blanco";
+"month.today" = "Hoy";
+"month.yesterday" = "Ayer";
+
+"chart.day" = "Día";
+"chart.amount" = "Monto";
+"chart.series" = "Serie";
+
+"movements.title" = "Movimientos";
+"movements.search" = "Buscar comercio, nota o categoría";
+"movements.empty" = "No hay movimientos que coincidan.";
+"movements.filter.all" = "Todos";
+"movements.filter.expense" = "Gastos";
+"movements.filter.income" = "Ingresos";
+"movements.filter.apple_pay" = "Apple Pay";
+
+"form.titleNew" = "Anotar movimiento";
+"form.titleEdit" = "Editar movimiento";
+"form.kind" = "Tipo";
+"form.expense" = "Gasto";
+"form.income" = "Ingreso";
+"form.amount" = "Monto";
+"form.currency" = "Moneda";
+"form.merchant" = "Comercio";
+"form.category" = "Categoría";
+"form.account" = "Cuenta";
+"form.noAccount" = "Sin cuenta";
+"form.date" = "Fecha";
+"form.note" = "Nota (opcional)";
+"form.save" = "Guardar";
+"form.delete" = "Borrar";
+"form.suggested %@" = "Sugerida: %@";
+"form.amountPlaceholder" = "0";
+"form.suggestedShort" = "Sugerida";
+"form.saveExpense" = "Guardar gasto";
+"form.saveIncome" = "Guardar ingreso";
+"form.confirmDelete" = "¿Borrar este movimiento?";
+"form.invalidAmount" = "Escribe un monto válido, por ejemplo 4500 o 12,50.";
+
+"review.title" = "Por revisar";
+"review.empty" = "No hay nada por revisar. Cada pago nuevo con Apple Pay aparece aquí.";
+"review.emptyTitle" = "Todo al día";
+"review.intro" = "Pagos de Apple Pay sin categoría o con un monto que harina no pudo leer. Un toque y listo.";
+"review.fixAmount" = "Revisar monto";
+"review.apply %@" = "Usar %@";
+"review.rawAmount %@" = "Monto recibido: %@";
+
+"category.none" = "Sin categoría";
+"category.food" = "Comida";
+"category.groceries" = "Súper";
+"category.transport" = "Transporte";
+"category.home" = "Casa";
+"category.health" = "Salud";
+"category.entertainment" = "Entretenimiento";
+"category.other" = "Otros";
+
+"categories.title" = "Categorías";
+"categories.newName" = "Nueva categoría";
+"categories.add" = "Agregar";
+
+"accounts.title" = "Cuentas";
+"accounts.name" = "Nombre de la cuenta";
+"accounts.card" = "Tarjeta que reporta el atajo (opcional)";
+"accounts.cardHint" = "Las cuentas de cada tarjeta se crean solas con el primer pago. Desliza para borrar.";
+"accounts.add" = "Agregar cuenta";
+
+"sync.pending" = "Pendiente de sincronizar";
+
+"settings.server" = "Servidor";
+"settings.linkedTo" = "Vinculado con";
+"settings.lastSync" = "Última sincronización";
+"settings.syncError" = "No se pudo sincronizar. Todo queda guardado en el iPhone y se envía cuando haya señal.";
+"settings.syncNow" = "Sincronizar ahora";
+"settings.unlink" = "Desvincular este iPhone";
+"settings.link" = "Vincular con el servidor";
+"settings.linkHint" = "harina funciona sin servidor. Vincúlalo para tener respaldo, la web y la exportación completa.";
+"settings.capture" = "Pagos con Apple Pay";
+"settings.automationHelp" = "Cómo anotar los pagos solos";
+"settings.defaultCurrency" = "Moneda si el pago no la indica";
+"settings.data" = "Tus datos";
+"settings.export" = "Exportar CSV";
+"settings.appLock" = "Pedir Face ID al abrir";
+"settings.privacy" = "harina no usa IA, no se conecta a tu banco y no comparte tus datos con nadie.";
+
+"link.server" = "Dirección del servidor, por ejemplo https://harina.lzno.app";
+"link.code" = "Código de vinculación";
+"link.help" = "En la web de harina: Ajustes, «Generar código de vinculación». El código sirve una sola vez y vence en 10 minutos.";
+"link.button" = "Vincular";
+"link.badServer" = "La dirección debe empezar con https://";
+"link.badCode" = "El código no es válido o ya venció.";
+"link.failed" = "No se pudo conectar con el servidor.";
+
+"automation.step1" = "1. Abre la app Atajos y ve a la pestaña «Automatización».";
+"automation.step2" = "2. Toca «+» (o «Nueva automatización») y elige «Transacción».";
+"automation.step3" = "3. Elige tus tarjetas de Wallet, deja marcado «Toco» y elige «Ejecutar inmediatamente». Toca «Siguiente».";
+"automation.step4" = "4. Toca «Nuevo atajo en blanco» y agrega la acción «Registrar pago en harina».";
+"automation.step5" = "5. En «Monto» elige la variable «Entrada del atajo» y luego «Monto». En «Comercio» elige «Comercio» y en «Tarjeta», «Tarjeta o pase».";
+"automation.step6" = "6. Guarda. Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
+"automation.footer" = "harina solo recibe el comercio, el monto y el nombre de la tarjeta. No ve tu banco ni tus contraseñas.";
+"automation.open" = "Abrir Atajos";
+
+"intent.record.title" = "Registrar pago en harina";
+"intent.record.description" = "Anota un pago con Apple Pay como gasto sin categoría. Funciona sin señal.";
+"intent.record.short" = "Registrar pago";
+"intent.record.saved %@" = "Anotado: %@";
+"intent.record.savedReview" = "Pago anotado. Revisa el monto en harina.";
+"intent.param.amount" = "Monto";
+"intent.param.merchant" = "Comercio";
+"intent.param.card" = "Tarjeta";
+
+"export.date" = "fecha";
+"export.kind" = "tipo";
+"export.amount" = "monto";
+"export.currency" = "moneda";
+"export.category" = "categoria";
+"export.account" = "cuenta";
+"export.merchant" = "comercio";
+"export.note" = "nota";
+"export.card" = "tarjeta";
+"export.source" = "origen";
+"export.needs_review" = "por_revisar";
+"export.id" = "id";
+"label.expense" = "Gasto";
+"label.income" = "Ingreso";
+"label.manual" = "Manual";
+"label.apple_pay" = "Apple Pay";
+
+"app.cancel" = "Cancelar";
+
+"onboarding.start" = "Empezar";
+"onboarding.continue" = "Continuar";
+"onboarding.later" = "Lo haré después";
+"onboarding.notNow" = "Ahora no";
+"onboarding.finish" = "Listo, ir a harina";
+"onboarding.welcome.title" = "Tus pagos, anotados solos";
+"onboarding.welcome.text" = "Cada vez que pagas con Apple Pay, harina lo anota. Tú solo le pones categoría.";
+"onboarding.welcome.f1" = "Apple Pay del iPhone y del reloj, sin escribir nada";
+"onboarding.welcome.f2" = "Colones y dólares, cada uno por su lado";
+"onboarding.welcome.f3" = "Sin conectar tu banco, sin IA, sin anuncios";
+"onboarding.currency.title" = "¿En qué moneda pagas casi siempre?";
+"onboarding.currency.text" = "harina la usa cuando un pago no dice su moneda. Puedes anotar en las dos.";
+"onboarding.currency.CRC" = "Colones";
+"onboarding.currency.USD" = "Dólares";
+"onboarding.categories.title" = "Tus categorías";
+"onboarding.categories.text" = "Empezamos con estas. Toca para quitar o agregar, mantén presionado para cambiar nombre, ícono o color.";
+"onboarding.capture.title" = "Activa la captura de Apple Pay";
+"onboarding.capture.text" = "Una sola vez, en la app Atajos. Toma un minuto.";
+"onboarding.capture.waiting" = "Esperando tu primer pago con Apple Pay…";
+"onboarding.capture.works %@" = "¡Funciona! Llegó un pago de %@";
+"onboarding.faceid.title" = "Protege tus finanzas";
+"onboarding.faceid.text" = "harina te pide Face ID al abrirla. Los pagos se siguen anotando solos aunque el iPhone esté bloqueado.";
+"onboarding.faceid.enable" = "Usar Face ID";
+"onboarding.link.title" = "Respaldo y web";
+"onboarding.link.text" = "Opcional. Vincula el iPhone con tu servidor de harina para tener respaldo, ver todo en la computadora y exportar.";
+"onboarding.link.qr1" = "En la computadora, abre harina: Ajustes, «Vincular iPhone».";
+"onboarding.link.qr2" = "Apunta la cámara del iPhone al código QR.";
+"onboarding.link.qr3" = "Toca el aviso y confirma en harina.";
+"onboarding.link.manual" = "Escribir el código a mano";
+"onboarding.link.later" = "Más tarde";
+"onboarding.link.done %@" = "Vinculado con %@";
+
+"automation.step1.short" = "Abre Atajos, pestaña «Automatización», y toca «+».";
+"automation.step2.short" = "Elige «Transacción».";
+"automation.step3.short" = "Marca tus tarjetas, deja «Toco» y elige «Ejecutar inmediatamente».";
+"automation.step4.short" = "«Nuevo atajo en blanco» y agrega «Registrar pago en harina».";
+"automation.step5.short" = "En Monto, Comercio y Tarjeta elige la variable «Entrada del atajo» y su campo.";
+"automation.step6.short" = "Guarda y paga algo con Apple Pay.";
+
+"categories.edit" = "Editar categoría";
+"categories.hint" = "Toca para quitar o agregar. Mantén presionado para cambiar nombre, ícono o color.";
+"categories.emoji" = "Ícono";
+"categories.customEmoji" = "O escribe cualquier emoji";
+"categories.color" = "Color";
+"categories.confirmDeleteShort" = "Los movimientos de esta categoría quedan sin categoría.";
+"categories.manage" = "Elegir y editar categorías";
+"categories.count %lld" = "%lld activas";
+
+"category.coffee" = "Café";
+"category.utilities" = "Servicios (luz, agua, internet)";
+"category.subscriptions" = "Suscripciones";
+"category.clothing" = "Ropa";
+"category.pets" = "Mascotas";
+"category.education" = "Educación";
+"category.travel" = "Viajes";
+"category.gifts" = "Regalos";
+"category.personal" = "Cuidado personal";
+"category.kids" = "Hijos";
+"category.sports" = "Deporte";
+"category.salary" = "Salario";
+
+"settings.replayOnboarding" = "Ver la bienvenida otra vez";
+
+"deeplink.title" = "Vincular este iPhone con";
+"deeplink.text" = "Tus movimientos se van a respaldar en ese servidor. Vincula solo si es el tuyo.";
+"deeplink.replace %@" = "Este iPhone ya está vinculado con %@. Se va a cambiar.";
+"deeplink.confirm" = "Vincular";
+"deeplink.invalid" = "Ese enlace de vinculación no es válido. Genera un código nuevo en la web.";
+
+"firstcapture.title" = "¡Funciona!";
+"firstcapture.text" = "harina anotó tu primer pago con Apple Pay. ¿En qué categoría va?";
+
+"firstweek.title" = "Primera semana";
+"firstweek.hide" = "Ocultar";
+"firstweek.iphone" = "Un pago con el iPhone";
+"firstweek.iphone.text" = "Paga con Apple Pay y mira que aparezca solo.";
+"firstweek.watch" = "Un pago con el Apple Watch";
+"firstweek.watch.text" = "Paga con el reloj. ¿Apareció en harina?";
+"firstweek.watch.no" = "Anótalos a mano por ahora; buscaremos otra forma.";
+"firstweek.watch.yes" = "Sí, apareció";
+"firstweek.watch.notYet" = "No apareció";
+"firstweek.offline" = "Un pago sin señal";
+"firstweek.offline.text" = "Pon el modo avión, paga y quítalo: debe llegar a la web.";
+"firstweek.offline.waiting" = "Guardado en el iPhone, esperando señal…";
+"firstweek.offline.link" = "Vincula el iPhone en Ajustes para probarlo.";
