@@ -100,13 +100,17 @@ struct MonthView: View {
         let spent = total("expense", in: inMonth)
         let earned = total("income", in: inMonth)
         let pending = movements.filter(\.isPendingReview).count
+        let brain = Smart.brain(movements: movements, categories: categories)
+        let projection = month.contains(Date())
+            ? Insights.projectMonth(movements.map(\.dto), recurring: brain.recurring, currency: cur) : nil
         ScrollView {
             VStack(spacing: 16) {
                 header
                 FirstWeekCard()
-                hero(spent: spent, earned: earned)
+                hero(spent: spent, earned: earned, projection: projection)
                 if pending > 0 { reviewBanner(pending) }
                 PaceCard(month: month, currency: cur, movements: movements)
+                FixedCard(brain: brain, currency: cur)
                 categoriesCard(spent: spent)
                 recentCard
             }
@@ -139,7 +143,7 @@ struct MonthView: View {
         .padding(.top, 8)
     }
 
-    private func hero(spent: Int64, earned: Int64) -> some View {
+    private func hero(spent: Int64, earned: Int64, projection: MonthProjection?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("month.spentIn \(Formatting.monthName(month.start))").font(.subheadline.weight(.semibold)).opacity(0.9)
@@ -167,6 +171,10 @@ struct MonthView: View {
                 .lineLimit(1)
                 .contentTransition(.numericText())
             ComparisonPill(month: month, currency: cur, spent: spent, movements: movements)
+            if let projection {
+                Text("month.projection \(Formatting.money(projection.projected, cur))")
+                    .font(.footnote.weight(.semibold)).opacity(0.92)
+            }
             HStack(spacing: 10) {
                 heroStat("month.income", Formatting.money(earned, cur))
                 heroStat("month.balance", Formatting.money(earned - spent, cur))
@@ -426,6 +434,9 @@ struct MovementRow: View {
                     .font(.body.weight(.semibold)).lineLimit(1)
                 HStack(spacing: 4) {
                     if movement.source == "apple_pay" { Image(systemName: "bolt.fill").foregroundStyle(Theme.warn).font(.caption2) }
+                    if movement.categoryAuto == 1 {
+                        Image(systemName: "sparkles").foregroundStyle(Color(hex: 0xFF4F6D)).font(.caption2).accessibilityLabel("auto.mark")
+                    }
                     Text(category?.displayName ?? String(localized: "category.none")).lineLimit(1)
                 }
                 .font(.caption)
@@ -546,6 +557,7 @@ struct ReviewView: View {
     var body: some View {
         let pending = movements.filter(\.isPendingReview)
         let sorted = categories.sorted { $0.displayName < $1.displayName }
+        let brain = Smart.brain(movements: movements, categories: categories)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if pending.isEmpty {
@@ -553,7 +565,9 @@ struct ReviewView: View {
                 } else {
                     Text("review.intro").font(.subheadline).foregroundStyle(.secondary)
                     ForEach(pending) { m in
-                        let suggestion = m.needsReview ? nil : Suggestion.category(for: m.merchant, in: movements, categories: categories)
+                        // The decision model ranks the categories; the best one is highlighted when it is likely.
+                        let ranking = m.needsReview ? (best: CategoryItem?.none, ranked: sorted) : brain.ranking(for: m)
+                        let suggestion = ranking.best
                         VStack(alignment: .leading, spacing: 12) {
                             NavigationLink { MovementForm(movement: m) } label: {
                                 MovementRow(movement: m, category: nil)
@@ -567,7 +581,7 @@ struct ReviewView: View {
                             } else {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 8) {
-                                        ForEach(([suggestion].compactMap { $0 } + sorted.filter { $0.id != suggestion?.id })) { c in
+                                        ForEach(ranking.ranked) { c in
                                             Button { assign(c, to: m) } label: {
                                                 HStack(spacing: 5) {
                                                     if c.id == suggestion?.id { Image(systemName: "sparkles") } else { Text(verbatim: Looks.of(c).glyph) }
@@ -595,22 +609,10 @@ struct ReviewView: View {
 
     private func assign(_ c: CategoryItem, to m: Movement) {
         withAnimation(.snappy) {
-            m.categoryId = c.id
+            m.setCategory(byPerson: c.id)
             m.touch()
             try? context.save()
         }
         Task { await sync.sync() }
-    }
-}
-
-enum Suggestion {
-    /// The category last used for this merchant.
-    static func category(for merchant: String?, in movements: [Movement], categories: [CategoryItem]) -> CategoryItem? {
-        let key = MerchantKey.normalize(merchant)
-        guard !key.isEmpty else { return nil }
-        let last = movements
-            .filter { $0.categoryId != nil && MerchantKey.normalize($0.merchant) == key }
-            .max { $0.updatedAt < $1.updatedAt }
-        return categories.first { $0.id == last?.categoryId }
     }
 }

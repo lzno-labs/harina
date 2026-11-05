@@ -53,6 +53,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            AutoCategorySection()
             Section {
                 ForEach(accounts) { a in
                     HStack(spacing: 12) {

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/node.js",
-    "test": "node --disable-warning=ExperimentalWarning --test 'tests/*.test.js'",
+    "test": "TZ=UTC node --disable-warning=ExperimentalWarning --test 'tests/*.test.js'",
     "lint": "eslint . && node scripts/check-i18n.js",
     "reset-passkeys": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli.js reset-passkeys"
   },

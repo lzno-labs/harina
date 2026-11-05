@@ -439,3 +439,19 @@ dialog.sheet::backdrop { background: rgba(5, 6, 12, 0.55); backdrop-filter: blur
 .code-box b { display: block; margin-bottom: 6px; }
 .row form { flex-wrap: wrap; }
 .row form .input { flex: 1 1 140px; min-width: 0; }
+
+/* decision model and recurring expenses */
+.projection { margin: 8px 0 0; font-size: 13.5px; font-weight: 650; opacity: 0.92; }
+.tx .who span .auto { display: inline-flex; font-style: normal; }
+.tx .who span .auto svg { stroke: var(--brand-2); }
+.fixed-total { display: flex; align-items: baseline; gap: 8px; margin: -4px 0 6px; }
+.fixed-total b { font-size: 24px; letter-spacing: -0.03em; }
+.fixed-total span { color: var(--muted); font-size: 13px; font-weight: 600; }
+.fixed-row:hover { background: transparent; }
+.when.soon { color: var(--brand-2); font-weight: 700; }
+.when.missed { color: var(--warn); font-weight: 700; }
+.tx .amt small.up { color: var(--warn); }
+.grid.two-up { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px; }
+.card.stat span { display: block; color: var(--muted); font-size: 13px; font-weight: 600; }
+.card.stat b { display: block; font-size: 28px; letter-spacing: -0.03em; margin: 4px 0; }
+.card.stat small { color: var(--muted); font-weight: 600; }

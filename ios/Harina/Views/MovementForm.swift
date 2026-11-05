@@ -25,11 +25,17 @@ struct MovementForm: View {
     @State private var saved = false
     @State private var confirmDelete = false
     @FocusState private var amountFocused: Bool
+    /// Built once per screen: the model is retrained from all labels, so not on every keystroke.
+    @State private var brain: Brain?
 
     private let columns = [GridItem(.adaptive(minimum: 82), spacing: 8)]
 
     var body: some View {
-        let suggestion = categoryId == nil ? Suggestion.category(for: merchant, in: movements, categories: categories) : nil
+        let suggestion: CategoryItem? = {
+            guard categoryId == nil, let brain else { return nil }
+            let d = brain.model.decide(brain.calibration, DecisionState(merchant: merchant, card: nil, amountMinor: nil, currency: currency))
+            return d.band == .ask ? nil : brain.category(d.categoryId)
+        }()
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Picker("form.kind", selection: $kind) {
@@ -158,7 +164,10 @@ struct MovementForm: View {
             }
         }
         .sensoryFeedback(.success, trigger: saved)
-        .onAppear(perform: load)
+        .onAppear {
+            load()
+            brain = Smart.brain(movements: movements, categories: categories)
+        }
     }
 
     private func field<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
@@ -193,7 +202,7 @@ struct MovementForm: View {
         m.kind = kind
         m.amountMinor = parsed.minor
         m.currency = currency
-        m.categoryId = categoryId
+        m.setCategory(byPerson: categoryId)
         m.accountId = accountId
         m.occurredAt = date
         m.merchant = merchant.isEmpty ? nil : String(merchant.prefix(200))

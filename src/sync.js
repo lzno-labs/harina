@@ -34,6 +34,7 @@ export const ENTITIES = {
     ["source", "enum", { required: true, values: ["manual", "apple_pay"] }],
     ["raw_amount", "string", { max: 100 }],
     ["needs_review", "bool", {}],
+    ["category_auto", "int", { min: 0, max: 2 }],
     ["occurred_at", "date", { required: true }],
   ],
 };
@@ -99,6 +100,7 @@ export function validateRecord(entity, rec, now = Date.now()) {
     row[f[0]] = deleted && !f[2].required ? null : checkField(entity, f, rec[f[0]]);
   }
   if (row.needs_review === null) row.needs_review = 0;
+  if (row.category_auto === null) row.category_auto = 0;
   return row;
 }
 

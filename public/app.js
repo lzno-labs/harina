@@ -3,6 +3,7 @@ import { applyI18n, loadLocale, region, t } from "./i18n.js";
 import { formatMoney, minorToInput, parseAmount } from "./money.js";
 import { createPasskey, getPasskey, supported } from "./webauthn.js";
 import qrcode from "./vendor/qrcode-generator-2.0.4.js";
+import { calibrate, decide, detectRecurring, liveStats, merchantKey, projectMonth, trainCategoryModel } from "./insights.js";
 
 const CURRENCIES = ["CRC", "USD"];
 const state = {
@@ -167,19 +168,41 @@ const money = (minor, cur) => formatMoney(minor, cur, region);
 const live = (map) => [...map.values()].filter((r) => !r.deleted);
 const liveTx = () => live(state.transactions);
 
-function merchantKey(name) {
-  return (name ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// ---------- decision model and recurring expenses (public/insights.js) ----------
+
+let insightsCache = null;
+
+/** Model, calibration and recurring list, rebuilt only when the data changes. */
+function insights() {
+  if (insightsCache) return insightsCache;
+  const txs = [...state.transactions.values()];
+  const active = new Set(live(state.categories).map((c) => c.id));
+  insightsCache = {
+    model: trainCategoryModel(txs, active),
+    calibration: calibrate(txs, active),
+    recurring: detectRecurring(txs, new Date()),
+    stats: liveStats(txs),
+  };
+  return insightsCache;
+}
+
+/** The model's answer for a payment: band, best category and the categories ranked by probability. */
+function categoryDecision(tx) {
+  const { model, calibration } = insights();
+  const d = decide(model, calibration, tx);
+  const ranked = d.ranked.map((r) => state.categories.get(r.id)).filter((c) => c && !c.deleted);
+  const best = d.band === "ask" ? null : (state.categories.get(d.categoryId) ?? null);
+  return { ...d, best: best && !best.deleted ? best : null, rankedCategories: ranked };
 }
 
 function suggestCategory(merchant) {
-  const key = merchantKey(merchant);
-  if (!key) return null;
-  let best = null;
-  for (const tx of liveTx()) {
-    if (tx.category_id && merchantKey(tx.merchant) === key && (!best || tx.updated_at > best.updated_at)) best = tx;
-  }
-  const c = best && state.categories.get(best.category_id);
-  return c && !c.deleted ? c : null;
+  return categoryDecision({ merchant, card: null, amount_minor: null, currency: null }).best;
+}
+
+/** How a category was set: kept automatic only if it did not change; a changed automatic one is a correction. */
+function categoryAutoAfter(tx, newCategory) {
+  if ((tx.category_auto ?? 0) === 1) return tx.category_id === newCategory ? 1 : 2;
+  return tx.category_auto ?? 0;
 }
 
 const needsReview = (tx) => !tx.deleted && (tx.needs_review || (tx.kind === "expense" && !tx.category_id));
@@ -257,6 +280,7 @@ function txTile(tx) {
 
 function applyRecords(records) {
   for (const [entity, rows] of Object.entries(records)) for (const r of rows) state[entity].set(r.id, r);
+  insightsCache = null;
 }
 
 async function loadAll() {
@@ -499,12 +523,14 @@ function viewMonth() {
         )
       : null;
 
+  const projection = isThis ? projectMonth(liveTx(), insights().recurring, cur, now) : null;
   const hero = h(
     "section",
     { class: "card hero" },
     h("div", { class: "label" }, h("span", { text: t("month.spentIn", { month: fmtMonthName(state.month) }) }), curToggle),
     h("div", { class: "big num", text: money(spent, cur) }),
     vs,
+    projection ? h("p", { class: "projection num", text: t("month.projection", { amount: money(projection.projected, cur) }) }) : null,
     h(
       "div",
       { class: "hero-stats" },
@@ -581,7 +607,7 @@ function viewMonth() {
         h("button", { class: "icon-btn", "aria-label": t("month.next"), onclick: () => ((state.month = shiftMonth(state.month, 1)), viewMonth()) }, icon("right")),
       ),
     ),
-    h("div", { class: "grid dash" }, startCard(), h("div", { class: "grid" }, hero, inbox, chart), catCard, recentCard),
+    h("div", { class: "grid dash" }, startCard(), h("div", { class: "grid" }, hero, inbox, chart), h("div", { class: "grid" }, fixedCard(cur), catCard), recentCard),
   );
 }
 
@@ -643,6 +669,86 @@ function greeting() {
   return t(hr < 12 ? "app.greeting.morning" : hr < 19 ? "app.greeting.afternoon" : "app.greeting.evening");
 }
 
+// ---------- recurring expenses ----------
+
+const CADENCE_KEY = { weekly: "fixed.weekly", monthly: "fixed.monthly", yearly: "fixed.yearly" };
+
+function whenLabel(r) {
+  if (r.status === "missed") return t("fixed.missed", { date: new Intl.DateTimeFormat(region, { day: "numeric", month: "short" }).format(new Date(r.next)) });
+  if (r.daysToNext <= 0) return t("fixed.today");
+  if (r.daysToNext === 1) return t("fixed.tomorrow");
+  if (r.daysToNext <= 7) return t("fixed.inDays", { days: r.daysToNext });
+  return t("fixed.on", { date: new Intl.DateTimeFormat(region, { day: "numeric", month: "short" }).format(new Date(r.next)) });
+}
+
+function fixedRow(r) {
+  const c = state.categories.get(r.categoryId);
+  return h(
+    "div",
+    { class: "tx fixed-row" },
+    tile(c && !c.deleted ? c : null),
+    h(
+      "div",
+      { class: "who" },
+      h("b", { text: r.merchant }),
+      h("span", {},
+        h("span", { class: `when ${r.status}`, text: whenLabel(r) }),
+        ` · ${t(CADENCE_KEY[r.cadence])}`,
+        r.confidence === "likely" ? ` · ${t("fixed.likely")}` : "",
+      ),
+    ),
+    h(
+      "div",
+      { class: "amt num" },
+      money(r.amount, r.currency),
+      r.priceChange ? h("small", { class: "up", text: t("fixed.priceUp", { from: money(r.priceChange.from, r.currency) }) }) : null,
+    ),
+  );
+}
+
+/** Dashboard card: fixed charges of the month in the hero currency and the next ones due. */
+function fixedCard(cur) {
+  const rec = insights().recurring.filter((r) => r.currency === cur);
+  if (!rec.length) return null;
+  const monthly = rec.reduce((a, r) => a + r.monthly, 0);
+  const upcoming = rec.filter((r) => r.status !== "scheduled").slice(0, 4);
+  return h(
+    "section",
+    { class: "card" },
+    h("div", { class: "card-head" }, h("h2", { text: t("fixed.title") }), h("a", { href: "#/fijos", text: t("month.seeAll") })),
+    h("p", { class: "fixed-total" }, h("b", { class: "num", text: money(monthly, cur) }), h("span", { text: t("fixed.perMonth", { count: rec.length }) })),
+    (upcoming.length ? upcoming : rec.slice(0, 3)).map(fixedRow),
+  );
+}
+
+function viewFixed() {
+  const rec = insights().recurring;
+  const totals = {};
+  for (const r of rec) totals[r.currency] = (totals[r.currency] ?? 0) + r.monthly;
+  const section = (title, list) => (list.length ? h("section", { class: "card" }, h("div", { class: "card-head" }, h("h2", { text: title })), list.map(fixedRow)) : null);
+  render(
+    h("div", { class: "page-head" }, h("div", {}, h("p", { class: "eyebrow", text: t("fixed.subtitle") }), h("h1", { text: t("fixed.title") }))),
+    rec.length
+      ? [
+          h(
+            "div",
+            { class: "grid two-up" },
+            Object.entries(totals).map(([cur, v]) =>
+              h("section", { class: "card stat" }, h("span", { text: t("fixed.monthlyTotal", { currency: cur }) }), h("b", { class: "num", text: money(v, cur) }), h("small", { class: "num", text: t("fixed.yearlyTotal", { amount: money(v * 12, cur) }) })),
+            ),
+          ),
+          h(
+            "div",
+            { class: "grid" },
+            section(t("fixed.attention"), rec.filter((r) => r.status === "missed" || r.priceChange)),
+            section(t("fixed.upcoming"), rec.filter((r) => r.status !== "missed" && !r.priceChange)),
+          ),
+          h("p", { class: "eyebrow", text: t("fixed.how") }),
+        ]
+      : h("section", { class: "card empty" }, h("span", { class: "big-emoji", text: "🔁" }), h("b", { text: t("fixed.emptyTitle") }), t("fixed.empty")),
+  );
+}
+
 // ---------- movements ----------
 
 function txRow(tx) {
@@ -656,7 +762,8 @@ function txRow(tx) {
     "a",
     { class: "tx", href: `#/editar/${tx.id}` },
     txTile(tx),
-    h("div", { class: "who" }, h("b", { text: tx.merchant || tx.note || categoryName(c) }), h("span", {}, tx.source === "apple_pay" ? icon("zap") : null, sub)),
+    h("div", { class: "who" }, h("b", { text: tx.merchant || tx.note || categoryName(c) }),
+      h("span", {}, tx.source === "apple_pay" ? icon("zap") : null, tx.category_auto === 1 ? h("i", { class: "auto", title: t("auto.mark"), "aria-label": t("auto.mark") }, icon("spark")) : null, sub)),
     amount,
   );
 }
@@ -843,6 +950,7 @@ function viewForm(existing) {
             amount_minor: minor,
             currency: st.currency,
             category_id: st.category,
+            category_auto: categoryAutoAfter(tx, st.category),
             account_id: st.account,
             merchant: merchant.value,
             note: note.value,
@@ -893,8 +1001,10 @@ function viewReview() {
     .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
   const cats = live(state.categories).sort((a, b) => categoryName(a).localeCompare(categoryName(b), region));
   const card = (tx) => {
-    const sug = !tx.needs_review ? suggestCategory(tx.merchant) : null;
-    const options = sug ? [sug, ...cats.filter((c) => c.id !== sug.id)] : cats;
+    const d = categoryDecision(tx);
+    const sug = !tx.needs_review ? d.best : null;
+    // Most likely first (the model's ranking), then the rest alphabetically.
+    const options = [...d.rankedCategories, ...cats.filter((c) => !d.rankedCategories.includes(c))];
     return h(
       "section",
       { class: "card review-card" },
@@ -919,7 +1029,7 @@ function viewReview() {
                   class: `chip ${sug?.id === c.id ? "suggest" : ""}`,
                   onclick: () =>
                     guarded(async () => {
-                      await save("transactions", { ...tx, category_id: c.id });
+                      await save("transactions", { ...tx, category_id: c.id, category_auto: categoryAutoAfter(tx, c.id) });
                       toast(t("form.saved"));
                       viewReview();
                       refreshBadge();
@@ -1113,6 +1223,26 @@ function editCategory(c, onchange) {
   if (!c) name.focus();
 }
 
+/** What the decision model learned, in numbers (it acts on the iPhone, where payments arrive). */
+function autoCategoryGroup() {
+  const { calibration, stats } = insights();
+  const pct = (x) => (x === null || x === undefined ? "–" : fmtPct(x));
+  const rows = [
+    [t("auto.history"), calibration.cases ? t("auto.historyValue", { pct: pct(calibration.accuracy), cases: calibration.cases }) : t("auto.learning")],
+    [t("auto.threshold"), calibration.threshold === null ? t("auto.notYet") : t("auto.thresholdValue", { pct: pct(calibration.threshold), coverage: pct(calibration.coverage) })],
+    [t("auto.live"), stats.auto + stats.corrected ? t("auto.liveValue", { kept: stats.auto, corrected: stats.corrected, pct: pct(stats.precision) }) : t("auto.noneYet")],
+  ];
+  return h(
+    "div",
+    {},
+    h("p", { class: "group-title", text: t("auto.title") }),
+    h("div", { class: "group" },
+      h("div", { class: "row" }, h("span", { class: "tile sm", bg: "linear-gradient(135deg, #ff9a3c, #8b5cf6)" }, icon("spark")), h("div", { class: "grow" }, h("b", { text: t("auto.title") }), h("span", { text: t("auto.intro") }))),
+      rows.map(([k, v]) => h("div", { class: "row" }, h("div", { class: "grow" }, h("b", { text: k }), h("span", { text: v })))),
+    ),
+  );
+}
+
 // ---------- settings ----------
 
 async function viewSettings() {
@@ -1179,6 +1309,7 @@ async function viewSettings() {
         h("p", { class: "eyebrow", text: t("accounts.cardHint") }),
       ),
       h("div", {},
+        autoCategoryGroup(),
         h("p", { class: "group-title", text: t("settings.sync") }),
         h(
           "div",
@@ -1280,6 +1411,7 @@ function router() {
   }
   if (hash === "#/nuevo") return viewForm();
   if (hash === "#/movimientos") return viewMovements();
+  if (hash === "#/fijos") return viewFixed();
   if (hash === "#/revisar") return viewReview();
   if (hash === "#/ajustes") return guarded(viewSettings);
   return viewMonth();

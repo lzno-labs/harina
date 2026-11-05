@@ -21,9 +21,9 @@ test("CSV and JSON export everything, in Spanish, safe for spreadsheets", async 
   });
   const csv = await (await call("/api/export.csv", { headers: h })).text();
   const lines = csv.replace(/^\uFEFF/, "").trim().split("\r\n");
-  assert.equal(lines[0], "fecha,tipo,monto,moneda,categoria,cuenta,comercio,nota,tarjeta,origen,por_revisar,id");
+  assert.equal(lines[0], "fecha,tipo,monto,moneda,categoria,cuenta,comercio,nota,tarjeta,origen,por_revisar,categoria_automatica,id");
   assert.equal(lines.length, 3);
-  assert.equal(lines[1], '2026-11-02T12:00:00Z,Gasto,4500.50,CRC,Comida,Tarjeta BAC,"Soda ""La Esquina"", Escazú",,,Manual,0,t1');
+  assert.equal(lines[1], '2026-11-02T12:00:00Z,Gasto,4500.50,CRC,Comida,Tarjeta BAC,"Soda ""La Esquina"", Escazú",,,Manual,0,0,t1');
   assert.match(lines[2], /,'=HYPERLINK\(1\),/);
 
   const json = await (await call("/api/export.json", { headers: h })).json();
