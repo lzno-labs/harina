@@ -18,6 +18,8 @@ final class Movement {
     var source: String
     var rawAmount: String?
     var needsReview: Bool
+    /// 0 set by the person, 1 set automatically by the decision model, 2 automatic then corrected.
+    var categoryAuto: Int = 0
     var occurredAt: Date
     var updatedAt: Int64
     var deleted: Bool
@@ -27,6 +29,7 @@ final class Movement {
         id = dto.id; kind = dto.kind; amountMinor = dto.amount_minor; currency = dto.currency
         categoryId = dto.category_id; accountId = dto.account_id; merchant = dto.merchant; note = dto.note
         card = dto.card; source = dto.source; rawAmount = dto.raw_amount; needsReview = (dto.needs_review ?? 0) != 0
+        categoryAuto = dto.category_auto ?? 0
         occurredAt = ISODate.date(dto.occurred_at) ?? Date(); updatedAt = dto.updated_at
         deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
     }
@@ -35,6 +38,7 @@ final class Movement {
         kind = dto.kind; amountMinor = dto.amount_minor; currency = dto.currency; categoryId = dto.category_id
         accountId = dto.account_id; merchant = dto.merchant; note = dto.note; card = dto.card; source = dto.source
         rawAmount = dto.raw_amount; needsReview = (dto.needs_review ?? 0) != 0
+        categoryAuto = dto.category_auto ?? 0
         occurredAt = ISODate.date(dto.occurred_at) ?? occurredAt; updatedAt = dto.updated_at
         deleted = (dto.deleted ?? 0) != 0; dirty = false
     }
@@ -42,7 +46,8 @@ final class Movement {
     var dto: TransactionDTO {
         TransactionDTO(id: id, kind: kind, amount_minor: amountMinor, currency: currency, category_id: categoryId,
                        account_id: accountId, merchant: merchant, note: note, card: card, source: source,
-                       raw_amount: rawAmount, needs_review: needsReview ? 1 : 0, occurred_at: ISODate.string(occurredAt),
+                       raw_amount: rawAmount, needs_review: needsReview ? 1 : 0, category_auto: categoryAuto,
+                       occurred_at: ISODate.string(occurredAt),
                        updated_at: updatedAt, deleted: deleted ? 1 : 0)
     }
 
@@ -53,6 +58,12 @@ final class Movement {
     }
 
     var isPendingReview: Bool { !deleted && (needsReview || (kind == "expense" && categoryId == nil)) }
+
+    /// Sets the category from a person's choice: a changed automatic category counts as a correction.
+    func setCategory(byPerson id: String?) {
+        if categoryAuto == 1 { categoryAuto = id == categoryId ? 1 : 2 }
+        categoryId = id
+    }
 }
 
 @Model
@@ -145,6 +156,11 @@ enum AppSettings {
     static var appLock: Bool {
         get { defaults.object(forKey: "appLock") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "appLock") }
+    }
+    /// The decision model may categorize Apple Pay payments on its own (docs/design/fijos-y-categoria-automatica.md).
+    static var autoCategory: Bool {
+        get { defaults.object(forKey: "autoCategory") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "autoCategory") }
     }
     static var onboarded: Bool {
         get { defaults.bool(forKey: "onboarded") }

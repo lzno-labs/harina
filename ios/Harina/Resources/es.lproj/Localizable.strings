@@ -249,3 +249,41 @@
 "firstweek.offline.text" = "Pon el modo avión, paga y quítalo: debe llegar a la web.";
 "firstweek.offline.waiting" = "Guardado en el iPhone, esperando señal…";
 "firstweek.offline.link" = "Vincula el iPhone en Ajustes para probarlo.";
+
+"month.projection %@" = "A este ritmo cierras el mes en %@ (estimado)";
+
+"fixed.title" = "Fijos";
+"fixed.perMonth %lld" = "al mes en %lld cobros fijos";
+"fixed.monthlyTotal %@" = "Fijos al mes en %@";
+"fixed.yearlyTotal %@" = "%@ al año";
+"fixed.attention" = "Para revisar";
+"fixed.upcoming" = "Próximos cobros";
+"fixed.weekly" = "cada semana";
+"fixed.monthly" = "cada mes";
+"fixed.yearly" = "cada año";
+"fixed.likely" = "probable";
+"fixed.today" = "hoy";
+"fixed.tomorrow" = "mañana";
+"fixed.inDays %lld" = "en %lld días";
+"fixed.on %@" = "el %@";
+"fixed.missed %@" = "no se cobró el %@";
+"fixed.priceUp %@" = "antes %@";
+"fixed.emptyTitle" = "Todavía no hay fijos";
+"fixed.empty" = "Cuando un mismo comercio te cobre parecido dos veces con un mes (o una semana, o un año) de diferencia, aparece aquí solo.";
+"fixed.how" = "harina detecta los cobros que se repiten con el mismo comercio y un monto parecido. «Probable» significa que solo vio dos cobros.";
+
+"auto.title" = "Categoría automática";
+"auto.toggle" = "Categorizar sola";
+"auto.intro" = "harina categoriza sola los pagos de comercios que ya categorizaste, cuando en tu historial acierta al menos 95 de cada 100. Corre en tu iPhone, sin IA externa. Los marca con ✨ y puedes cambiarlos.";
+"auto.mark" = "Categoría puesta por harina";
+"auto.history" = "En tu historial";
+"auto.historyValue %@ %lld" = "acierta %1$@ (%2$lld pagos)";
+"auto.learning" = "aprendiendo de tus categorías";
+"auto.threshold" = "Cuándo actúa sola";
+"auto.thresholdValue %@ %@" = "desde %1$@ de confianza; cubre %2$@";
+"auto.notYet" = "todavía no: necesita al menos 20 casos";
+"auto.live" = "En uso real";
+"auto.liveValue %lld %lld %@" = "%1$lld bien, %2$lld corregidas (%3$@)";
+"auto.noneYet" = "todavía ninguno";
+
+"intent.record.savedAuto %@ %@" = "Anotado: %1$@ en %2$@";

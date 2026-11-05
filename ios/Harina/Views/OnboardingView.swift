@@ -322,7 +322,7 @@ struct FirstCaptureView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                     ForEach(categories.sorted { $0.displayName < $1.displayName }) { c in
                         Button {
-                            movement.categoryId = c.id
+                            movement.setCategory(byPerson: c.id)
                             movement.touch()
                             try? context.save()
                             Task { await sync.sync() }

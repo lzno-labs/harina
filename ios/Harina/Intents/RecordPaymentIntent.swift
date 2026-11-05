@@ -24,8 +24,19 @@ struct RecordPaymentIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let context = Store.container.mainContext
         let accountId = Self.account(forCard: card, in: context)
-        let dto = PaymentCapture.movement(merchant: merchant, amountText: amount, card: card, accountId: accountId,
+        var dto = PaymentCapture.movement(merchant: merchant, amountText: amount, card: card, accountId: accountId,
                                           defaultCurrency: AppSettings.defaultCurrency)
+        // Decision model (docs/design/fijos-y-categoria-automatica.md): only acts when it is sure.
+        var autoCategory: CategoryItem?
+        if AppSettings.autoCategory, dto.needs_review == 0 {
+            let brain = Smart.brain(context)
+            let d = brain.model.decide(brain.calibration, DecisionState(dto))
+            if d.band == .act, let id = d.categoryId, let c = brain.categories.first(where: { $0.id == id }) {
+                dto.category_id = id
+                dto.category_auto = 1
+                autoCategory = c
+            }
+        }
         context.insert(Movement(dto, dirty: true))
         try context.save()
         // Best effort: without signal the payment waits in the queue and syncs later.
@@ -36,9 +47,11 @@ struct RecordPaymentIntent: AppIntent {
            let saved = try? context.fetch(FetchDescriptor<Movement>(predicate: #Predicate { $0.id == capturedId })).first, saved.dirty {
             AppSettings.offlineCaptureId = dto.id
         }
+        let money = Formatting.money(dto.amount_minor, dto.currency)
         let shown = dto.needs_review == 1
             ? String(localized: "intent.record.savedReview")
-            : String(localized: "intent.record.saved \(Formatting.money(dto.amount_minor, dto.currency))")
+            : autoCategory.map { String(localized: "intent.record.savedAuto \(money) \($0.displayName)") }
+            ?? String(localized: "intent.record.saved \(money)")
         return .result(dialog: IntentDialog(stringLiteral: shown))
     }
 
