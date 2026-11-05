@@ -29,7 +29,7 @@ test("no token: 401 with the resource metadata challenge; GET is not allowed", a
   const ctx = await cimdSetup();
   const r = await ctx.call("/mcp", { method: "POST", body: { jsonrpc: "2.0", id: 1, method: "tools/list" } });
   assert.equal(r.status, 401);
-  assert.equal(r.headers.get("WWW-Authenticate"), `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp", scope="harina.read"`);
+  assert.equal(r.headers.get("WWW-Authenticate"), `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp", scope="harina.read harina.write"`);
   assert.equal((await ctx.call("/mcp")).status, 405);
 });
 
@@ -112,4 +112,15 @@ test("a read-only connection lists only read tools and gets 403 insufficient_sco
 test("browser requests from other origins are refused", async () => {
   const { rpc } = await ready();
   assert.equal((await rpc("tools/list", {}, { Origin: "https://evil.example" })).status, 403);
+});
+
+test("a client that follows the 401 challenge gets the optional write switch on the consent page", async () => {
+  // Regression: with scope="harina.read" in the challenge, Claude asked only for reading and the
+  // consent page could not offer writing.
+  const ctx = await cimdSetup();
+  const r = await ctx.call("/mcp", { method: "POST", body: { jsonrpc: "2.0", id: 1, method: "tools/list" } });
+  const scope = r.headers.get("WWW-Authenticate").match(/scope="([^"]+)"/)[1];
+  const { described, tokens } = await connect(ctx, { scope, write: false });
+  assert.deepEqual(described.scopes, ["harina.read", "harina.write"], "the page shows the switch");
+  assert.equal(tokens.scope, "harina.read", "and writing stays off unless the person turns it on");
 });
