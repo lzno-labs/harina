@@ -170,7 +170,7 @@ struct AutoCategorySection: View {
     @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
     @AppStorage("autoCategory") private var enabled = true
 
-    private func pct(_ x: Double?) -> String { x.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? "–" }
+    private func pct(_ x: Double?) -> String { x.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? L("auto.na") }
 
     var body: some View {
         let brain = Smart.brain(movements: movements, categories: categories)

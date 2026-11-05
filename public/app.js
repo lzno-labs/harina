@@ -1266,7 +1266,7 @@ function connectionsGroup(connections, onchange) {
 /** What the decision model learned, in numbers (it acts on the iPhone, where payments arrive). */
 function autoCategoryGroup() {
   const { calibration, stats } = insights();
-  const pct = (x) => (x === null || x === undefined ? "–" : fmtPct(x));
+  const pct = (x) => (x === null || x === undefined ? t("auto.na") : fmtPct(x));
   const rows = [
     [t("auto.history"), calibration.cases ? t("auto.historyValue", { pct: pct(calibration.accuracy), cases: calibration.cases }) : t("auto.learning")],
     [t("auto.threshold"), calibration.threshold === null ? t("auto.notYet") : t("auto.thresholdValue", { pct: pct(calibration.threshold), coverage: pct(calibration.coverage) })],
