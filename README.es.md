@@ -33,6 +33,16 @@ Para correrlo en Cloudflare, copia `wrangler.example.toml` a `wrangler.toml`, cr
 
 `GET /health` responde `{"ok": true, "core": "<commit>"}` con el valor de `LZNO_CORE_SHA`.
 
+## Usa harina desde tu asistente (MCP)
+
+harina es un servidor MCP remoto en `https://<tu harina>/mcp`, con su propio OAuth (entras con tu llave de acceso y ves una página de permisos). Agrégalo como conector personalizado:
+
+- **Claude** (web, escritorio, celular): Ajustes, Conectores, «Agregar conector personalizado», pega la dirección.
+- **ChatGPT**: Plugins, «Add custom MCP server», pega la dirección.
+- **Claude Code** / **Gemini CLI**: agrega un servidor MCP HTTP con la misma dirección; abren el navegador para entrar.
+
+Eliges «ver» (resumen, movimientos, fijos, por revisar, categorías) y, si quieres, «anotar y categorizar». Nunca puede borrar ni cambiar montos. Las conexiones se ven y se quitan en Ajustes. Diseño: [`docs/design/mcp.md`](docs/design/mcp.md) y [ADR 0004](docs/adr/0004-oauth-and-mcp.md) (en inglés).
+
 ## App de iOS
 
 Mira [`ios/README.md`](ios/README.md): compílala con Xcode, vincúlala a tu servidor con un código de un solo uso y crea la automatización de Atajos.

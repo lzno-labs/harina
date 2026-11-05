@@ -33,6 +33,16 @@ To run on Cloudflare instead, copy `wrangler.example.toml` to `wrangler.toml`, c
 
 `GET /health` answers `{"ok": true, "core": "<commit>"}` with the value of `LZNO_CORE_SHA`.
 
+## Use harina from your AI assistant (MCP)
+
+harina is a remote MCP server at `https://<your harina>/mcp` with its own OAuth (passkey sign-in and a consent page). Add it as a custom connector:
+
+- **Claude** (web, desktop, mobile): Settings, Connectors, "Add custom connector", paste the URL.
+- **ChatGPT**: Plugins, "Add custom MCP server", paste the URL.
+- **Claude Code** / **Gemini CLI**: add an HTTP MCP server with the same URL; they open the browser to sign in.
+
+You choose "see" (summary, movements, recurring, to review, categories) and, optionally, "add and categorize". It can never delete or change amounts. Connections are listed and revocable in Settings. Design: [`docs/design/mcp.md`](docs/design/mcp.md), [ADR 0004](docs/adr/0004-oauth-and-mcp.md).
+
 ## iOS app
 
 See [`ios/README.md`](ios/README.md): build with Xcode, link to your server with a one-time code, and create the Shortcuts automation.

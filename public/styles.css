@@ -455,3 +455,12 @@ dialog.sheet::backdrop { background: rgba(5, 6, 12, 0.55); backdrop-filter: blur
 .card.stat span { display: block; color: var(--muted); font-size: 13px; font-weight: 600; }
 .card.stat b { display: block; font-size: 28px; letter-spacing: -0.03em; margin: 4px 0; }
 .card.stat small { color: var(--muted); font-weight: 600; }
+
+/* assistant connections */
+.muted-host { color: var(--muted); font-size: 14px; font-weight: 600; }
+.consent-write { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; font-weight: 600; font-size: 14px; cursor: pointer; }
+.consent-write input { width: 20px; height: 20px; accent-color: #ff4f6d; flex: none; }
+.consent-warning { font-size: 13px; text-align: left; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; word-break: break-all; }
+.row .grow span + b.mono { margin-top: 4px; }
+.muted { color: var(--muted); }

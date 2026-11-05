@@ -3,6 +3,8 @@ import * as auth from "./auth.js";
 import { deleteAllData, exportCsv, exportJson } from "./export.js";
 import { LOCALES } from "./locales.js";
 import { pull, push, ValidationError } from "./sync.js";
+import * as oauth from "./oauth.js";
+import { handleMcp } from "./mcp.js";
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy":
@@ -38,6 +40,10 @@ const error = (code, status) => json({ error: code }, status);
  * @param {string} cfg.origin   public origin, for example https://harina.example.org
  * @param {string} [cfg.setupToken]  HARINA_SETUP_TOKEN, needed only for first-run setup
  * @param {string} [cfg.coreSha]     LZNO_CORE_SHA or any build identifier, shown by /health
+ * @param {string|boolean} [cfg.cimd]  HARINA_OAUTH_CIMD: "off" disables Client ID Metadata Documents
+ * @param {string} [cfg.mcpOrigins]  HARINA_MCP_ORIGINS: extra browser origins allowed on /mcp, comma separated
+ * @param {string} [cfg.timeZone]    HARINA_TZ for month boundaries in assistant answers (default America/Costa_Rica)
+ * @param {Function} [cfg.fetch]     fetch used for CIMD documents (tests inject one)
  */
 export function normalizeConfig(cfg) {
   const url = new URL(cfg.origin);
@@ -47,7 +53,38 @@ export function normalizeConfig(cfg) {
     https: url.protocol === "https:",
     setupToken: cfg.setupToken || "",
     coreSha: cfg.coreSha || "dev",
+    cimd: cfg.cimd !== false && cfg.cimd !== "off",
+    mcpOrigins: String(cfg.mcpOrigins ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    timeZone: cfg.timeZone || "America/Costa_Rica",
+    defaultCurrency: cfg.defaultCurrency || "CRC",
+    fetch: cfg.fetch ?? ((...a) => fetch(...a)),
   };
+}
+
+// Discovery, registration and token endpoints are called by other sites' clients.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+  "Access-Control-Max-Age": "86400",
+};
+
+function oauthError(e) {
+  return json({ error: e.code, error_description: e.description }, e.status, CORS);
+}
+
+async function readForm(req) {
+  const type = req.headers.get("Content-Type") ?? "";
+  const text = await req.text();
+  if (text.length > 16384) throw new oauth.OAuthError("invalid_request", "request too large");
+  if (type.startsWith("application/json")) {
+    try {
+      return new URLSearchParams(Object.entries(JSON.parse(text)).map(([k, v]) => [k, String(v)]));
+    } catch {
+      throw new oauth.OAuthError("invalid_request", "invalid JSON");
+    }
+  }
+  return new URLSearchParams(text);
 }
 
 function cookieName(cfg) {
@@ -115,6 +152,46 @@ export function createApp({ db, config, assets }) {
         ? new Response(JSON.stringify(LOCALES[lang]), { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" } })
         : error("not_found", 404);
     }
+
+    // ----- OAuth and MCP (docs/adr/0004-oauth-and-mcp.md) -----
+    const corsPath = path.startsWith("/.well-known/oauth-") || path === "/oauth/token" || path === "/oauth/register" || path === "/oauth/revoke";
+    if (corsPath && method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    if (path === "/.well-known/oauth-protected-resource" || path === "/.well-known/oauth-protected-resource/mcp") {
+      return json(oauth.protectedResourceMetadata(cfg), 200, CORS);
+    }
+    if (path === "/.well-known/oauth-authorization-server") return json(oauth.authorizationServerMetadata(cfg), 200, CORS);
+    if (path === "/oauth/register" && method === "POST") {
+      try {
+        return json(await oauth.registerClient(db, JSON.parse((await req.text()) || "{}")), 201, CORS);
+      } catch (e) {
+        if (e instanceof oauth.OAuthError) return oauthError(e);
+        if (e instanceof SyntaxError) return oauthError(new oauth.OAuthError("invalid_client_metadata", "invalid JSON"));
+        throw e;
+      }
+    }
+    if (path === "/oauth/authorize" && method === "GET") {
+      try {
+        const { redirect } = await oauth.startAuthorization(db, cfg, url.searchParams);
+        return new Response(null, { status: 302, headers: { Location: redirect, "Cache-Control": "no-store" } });
+      } catch (e) {
+        if (!(e instanceof oauth.OAuthError)) throw e;
+        // Never redirect to an unverified URI: show the error on harina's own page.
+        return new Response(null, { status: 302, headers: { Location: `${cfg.origin}/#/autorizar/error/${e.code}` } });
+      }
+    }
+    if (path === "/oauth/token" && method === "POST") {
+      try {
+        return json(await oauth.token(db, cfg, await readForm(req)), 200, { ...CORS, Pragma: "no-cache" });
+      } catch (e) {
+        if (e instanceof oauth.OAuthError) return oauthError(e);
+        throw e;
+      }
+    }
+    if (path === "/oauth/revoke" && method === "POST") {
+      await oauth.revoke(db, await readForm(req));
+      return json({}, 200, CORS);
+    }
+    if (path === "/mcp") return handleMcp(req, { db, cfg });
 
     if (!path.startsWith("/api/")) {
       return assets ? assets(req) : error("not_found", 404);
@@ -202,6 +279,37 @@ export function createApp({ db, config, assets }) {
         await deleteAllData(db);
         return json({ ok: true });
       }
+    }
+
+    const oreq = path.match(/^\/api\/oauth\/requests\/([A-Za-z0-9_-]{1,64})$/);
+    if (oreq && method === "GET") {
+      needSession();
+      try {
+        return json(await oauth.describeRequest(db, cfg, oreq[1]));
+      } catch (e) {
+        if (e instanceof oauth.OAuthError) return error(e.code, e.status === 404 ? 404 : 400);
+        throw e;
+      }
+    }
+    if (path === "/api/oauth/decision" && method === "POST") {
+      needSession();
+      const body = await readJson(req);
+      try {
+        return json(await oauth.decide(db, cfg, { id: body.id, approve: body.approve === true, write: body.write === true }));
+      } catch (e) {
+        if (e instanceof oauth.OAuthError) return error(e.code, e.status === 404 ? 404 : 400);
+        throw e;
+      }
+    }
+    if (path === "/api/connections" && method === "GET") {
+      needSession();
+      return json({ connections: await oauth.listGrants(db) });
+    }
+    const conn = path.match(/^\/api\/connections\/([A-Za-z0-9_-]{1,64})$/);
+    if (conn && method === "DELETE") {
+      needSession();
+      await oauth.revokeGrant(db, conn[1]);
+      return json({ ok: true });
     }
 
     const dev = path.match(/^\/api\/devices\/([A-Za-z0-9_-]{1,64})$/);
