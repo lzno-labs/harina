@@ -147,7 +147,11 @@ struct OnboardingView: View {
             if captured.isEmpty {
                 Button {
                     openedShortcuts = true
-                    if let url = URL(string: "shortcuts://") { UIApplication.shared.open(url) }
+                    Task {
+                        // Permission for the "pick a category" notification after each payment.
+                        await PaymentNotifier.requestPermission()
+                        if let url = URL(string: "shortcuts://") { await UIApplication.shared.open(url) }
+                    }
                 } label: { Label("automation.open", systemImage: "arrow.up.forward.app") }
                 .buttonStyle(BrandButtonStyle())
                 Button("onboarding.later", action: next).font(.subheadline.weight(.semibold))

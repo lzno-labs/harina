@@ -222,3 +222,15 @@ final class InsightsParityTests: XCTestCase {
         XCTAssertNil(Insights.priceChange([2600, 2800, 2700, 2900]))
     }
 }
+
+final class NotificationIdsTests: XCTestCase {
+    func testRoundTrip() {
+        XCTAssertEqual(NotificationIds.category(for: ["a", "b", "c", "d"]), "pick.a|b|c")
+        XCTAssertEqual(NotificationIds.categoryId(fromAction: NotificationIds.action(for: "default-food")), "default-food")
+        XCTAssertNil(NotificationIds.categoryId(fromAction: NotificationIds.other))
+        XCTAssertNil(NotificationIds.categoryId(fromAction: "com.apple.UNNotificationDefaultActionIdentifier"))
+        XCTAssertNil(NotificationIds.categoryId(fromAction: "cat:"))
+        XCTAssertEqual(NotificationIds.trimmed((1...40).map(String.init)).count, 30)
+        XCTAssertEqual(NotificationIds.trimmed((1...40).map(String.init)).first, "11")
+    }
+}

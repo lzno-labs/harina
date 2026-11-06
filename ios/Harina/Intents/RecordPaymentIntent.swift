@@ -28,14 +28,13 @@ struct RecordPaymentIntent: AppIntent {
                                           defaultCurrency: AppSettings.defaultCurrency)
         // Decision model (docs/design/fijos-y-categoria-automatica.md): only acts when it is sure.
         var autoCategory: CategoryItem?
-        if AppSettings.autoCategory, dto.needs_review == 0 {
-            let brain = Smart.brain(context)
-            let d = brain.model.decide(brain.calibration, DecisionState(dto))
-            if d.band == .act, let id = d.categoryId, let c = brain.categories.first(where: { $0.id == id }) {
-                dto.category_id = id
-                dto.category_auto = 1
-                autoCategory = c
-            }
+        let brain = Smart.brain(context)
+        let decision = brain.model.decide(brain.calibration, DecisionState(dto))
+        if AppSettings.autoCategory, dto.needs_review == 0, decision.band == .act,
+           let id = decision.categoryId, let c = brain.categories.first(where: { $0.id == id }) {
+            dto.category_id = id
+            dto.category_auto = 1
+            autoCategory = c
         }
         context.insert(Movement(dto, dirty: true))
         try context.save()
@@ -46,6 +45,14 @@ struct RecordPaymentIntent: AppIntent {
         if AppSettings.offlineCaptureId == nil, SyncService.shared.isLinked,
            let saved = try? context.fetch(FetchDescriptor<Movement>(predicate: #Predicate { $0.id == capturedId })).first, saved.dirty {
             AppSettings.offlineCaptureId = dto.id
+        }
+        // Not categorized automatically: offer the likely categories in a notification (one tap).
+        if dto.needs_review == 1 {
+            await PaymentNotifier.askReview(for: dto)
+        } else if autoCategory == nil {
+            let ranked = decision.ranked.compactMap { r in brain.categories.first { $0.id == r.id } }
+            let rest = brain.categories.filter { c in !ranked.contains { $0.id == c.id } }.sorted { $0.displayName < $1.displayName }
+            await PaymentNotifier.askCategory(for: dto, ranked: ranked + rest)
         }
         let money = Formatting.money(dto.amount_minor, dto.currency)
         let shown = dto.needs_review == 1
@@ -71,6 +78,16 @@ struct RecordPaymentIntent: AppIntent {
 
 struct HarinaShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: AddMovementIntent(),
+            phrases: [
+                "siri.phrase.expense \(.applicationName)",
+                "siri.phrase.kind \(\.$kind) \(.applicationName)",
+                "siri.phrase.add \(.applicationName)",
+            ],
+            shortTitle: "siri.short",
+            systemImageName: "mic.fill"
+        )
         AppShortcut(
             intent: RecordPaymentIntent(),
             phrases: ["intent.phrase \(.applicationName)"],

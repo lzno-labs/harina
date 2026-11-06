@@ -4,10 +4,10 @@ import { readFileSync, readdirSync } from "node:fs";
 const dir = "ios/Harina/Resources/es.lproj";
 const strings = readFileSync(`${dir}/Localizable.strings`, "utf8") + readFileSync(`${dir}/AppShortcuts.strings`, "utf8");
 // Interpolations become %@ or %lld depending on the type; compare them all as %@.
-const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace("${applicationName}", "%@").replace(/%lld/g, "%@")));
+const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace(/\$\{\w+\}/g, "%@").replace(/%lld/g, "%@")));
 const errors = [];
 const SYMBOL_ROOTS = new Set(["checkmark", "plus", "bolt", "dollarsign", "lock", "arrow", "chevron", "square", "circle", "faceid",
-  "qrcode", "link", "trash", "pencil", "icloud", "tray", "house", "list", "slider", "creditcard", "leaf", "desktopcomputer", "sparkles"]);
+  "qrcode", "link", "trash", "pencil", "icloud", "tray", "house", "list", "slider", "creditcard", "leaf", "desktopcomputer", "sparkles", "mic"]);
 for (const f of readdirSync("ios/Harina", { recursive: true }).filter((p) => p.endsWith(".swift"))) {
   const src = readFileSync(`ios/Harina/${f}`, "utf8");
   // Literal keys look like "area.name", optionally with one interpolation: "area.name \(x)".

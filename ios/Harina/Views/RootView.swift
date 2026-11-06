@@ -9,6 +9,8 @@ struct RootView: View {
     @State private var tab = 0
     @State private var celebrate: Movement?
     @AppStorage("firstCaptureSeen") private var firstCaptureSeen = false
+    /// Set by a notification ("Otra…" or a tap) to open "Por revisar".
+    @AppStorage("openTab") private var openTab = -1
 
     private var applePayCount: Int { movements.filter { $0.source == "apple_pay" }.count }
 
@@ -39,7 +41,13 @@ struct RootView: View {
                 .tag(4)
         }
         .tint(Color(hex: 0xFF4F6D))
-        .onAppear(perform: checkFirstCapture)
+        .onAppear {
+            checkFirstCapture()
+            if openTab >= 0 { tab = openTab; openTab = -1 }
+        }
+        .onChange(of: openTab) { _, new in
+            if new >= 0 { tab = new; openTab = -1 }
+        }
         .onChange(of: applePayCount) { _, _ in checkFirstCapture() }
         .sheet(item: $celebrate) { FirstCaptureView(movement: $0).environmentObject(SyncService.shared) }
     }
