@@ -316,3 +316,11 @@
 "voice.category.type" = "Categoría";
 "voice.done %@ %@" = "Anotado: %1$@ en %2$@.";
 "voice.done.category %@ %@ %@" = "Anotado: %1$@ en %2$@ (%3$@).";
+
+"automation.add" = "Agregar atajo";
+"automation.link.step1" = "Toca «Agregar atajo» y, en Atajos, confirma con «Agregar atajo».";
+"automation.link.step2" = "En Atajos, pestaña «Automatización», toca «+» y elige «Transacción». Marca tus tarjetas, deja «Toco» y elige «Ejecutar inmediatamente».";
+"automation.link.step3" = "Toca «Siguiente» y elige el atajo «Registrar pago en harina». No hay que configurar nada más.";
+"automation.link27.step1" = "Toca «Agregar atajo» y, en Atajos, confirma con «Agregar atajo».";
+"automation.link27.step2" = "El atajo ya trae su automatización: ábrelo, elige tus tarjetas y marca «Ejecutar inmediatamente».";
+"automation.link27.step3" = "Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";

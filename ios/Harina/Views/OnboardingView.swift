@@ -118,11 +118,11 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 16) {
                 title("onboarding.capture.title", "onboarding.capture.text")
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(1...6, id: \.self) { n in
+                    ForEach(Array(AutomationGuide.stepKeys(short: true).enumerated()), id: \.offset) { item in
                         HStack(alignment: .top, spacing: 12) {
-                            Text(verbatim: "\(n)").font(.subheadline.weight(.heavy)).foregroundStyle(.white)
+                            Text(verbatim: "\(item.offset + 1)").font(.subheadline.weight(.heavy)).foregroundStyle(.white)
                                 .frame(width: 28, height: 28).background(Theme.brand, in: Circle())
-                            Text(L("automation.step" + String(n) + ".short")).font(.subheadline)
+                            Text(L(item.element)).font(.subheadline)
                             Spacer(minLength: 0)
                         }
                         .padding(.vertical, 8)
@@ -150,9 +150,11 @@ struct OnboardingView: View {
                     Task {
                         // Permission for the "pick a category" notification after each payment.
                         await PaymentNotifier.requestPermission()
-                        if let url = URL(string: "shortcuts://") { await UIApplication.shared.open(url) }
+                        AutomationGuide.open()
                     }
-                } label: { Label("automation.open", systemImage: "arrow.up.forward.app") }
+                } label: {
+                    Label(LocalizedStringKey(AutomationGuide.shortcutURL == nil ? "automation.open" : "automation.add"), systemImage: "arrow.up.forward.app")
+                }
                 .buttonStyle(BrandButtonStyle())
                 Button("onboarding.later", action: next).font(.subheadline.weight(.semibold))
             } else {

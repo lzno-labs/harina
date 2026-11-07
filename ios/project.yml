@@ -49,6 +49,8 @@ targets:
           - CFBundleURLName: harina-link
             CFBundleURLSchemes: [harina]
         NSFaceIDUsageDescription: $(HARINA_FACE_ID_TEXT)
+        # iCloud link of a ready-made capture shortcut for this build (empty: manual steps).
+        HarinaShortcutURL: $(HARINA_SHORTCUT_URL)
 schemes:
   Harina:
     build:
