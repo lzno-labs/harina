@@ -170,14 +170,18 @@ struct AutomationHelpView: View {
     var body: some View {
         List {
             Section {
-                ForEach(1...6, id: \.self) { n in
-                    Text(L("automation.step" + String(n)))
+                ForEach(Array(AutomationGuide.stepKeys(short: false).enumerated()), id: \.offset) { item in
+                    let text = L(item.element)
+                    // The manual steps carry their number; the shorter ones get it here.
+                    Text(verbatim: text.first?.isNumber == true ? text : "\(item.offset + 1). \(text)")
                 }
             } footer: {
                 Text("automation.footer")
             }
             Section {
-                Link(destination: URL(string: "shortcuts://")!) { Label("automation.open", systemImage: "arrow.up.forward.app") }
+                Button { AutomationGuide.open() } label: {
+                    Label(LocalizedStringKey(AutomationGuide.shortcutURL == nil ? "automation.open" : "automation.add"), systemImage: "arrow.up.forward.app")
+                }
             }
         }
         .navigationTitle("settings.automationHelp")
