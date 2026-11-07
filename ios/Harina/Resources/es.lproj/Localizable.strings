@@ -288,3 +288,31 @@
 
 "intent.record.savedAuto %@ %@" = "Anotado: %1$@ en %2$@";
 "auto.na" = "sin datos";
+
+"settings.notify" = "Avisarme para categorizar cada pago";
+
+"notify.title %@ %@" = "%1$@ en %2$@";
+"notify.body" = "¿En qué categoría va?";
+"notify.other" = "Otra…";
+"notify.reviewTitle" = "Revisa este pago";
+"notify.reviewBody %@" = "harina no pudo leer el monto: %@";
+
+"siri.title" = "Anotar en harina";
+"siri.description" = "Anota un gasto o ingreso por voz, por ejemplo un SINPE Móvil o un pago en efectivo. Funciona sin señal.";
+"siri.short" = "Anotar gasto";
+"siri.param.amount" = "Monto";
+"siri.param.concept" = "Concepto";
+"siri.param.kind" = "Tipo";
+"siri.param.currency" = "Moneda";
+"siri.param.category" = "Categoría";
+"siri.ask.amount" = "¿Cuánto fue?";
+"siri.ask.concept" = "¿En qué fue?";
+"siri.kind.type" = "Tipo de movimiento";
+"siri.kind.expense" = "gasto";
+"siri.kind.income" = "ingreso";
+"siri.currency.type" = "Moneda";
+"siri.currency.CRC" = "colones";
+"siri.currency.USD" = "dólares";
+"siri.category.type" = "Categoría";
+"siri.done %@ %@" = "Anotado: %1$@ en %2$@.";
+"siri.done.category %@ %@ %@" = "Anotado: %1$@ en %2$@ (%3$@).";

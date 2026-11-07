@@ -12,6 +12,7 @@ struct SettingsView: View {
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt) private var movements: [Movement]
     @AppStorage("defaultCurrency") private var defaultCurrency = "CRC"
     @AppStorage("appLock") private var appLock = true
+    @AppStorage("categoryNotifications") private var notify = true
     @State private var newAccount = ""
     @State private var newCard = ""
 
@@ -33,6 +34,10 @@ struct SettingsView: View {
             }
             Section("settings.capture") {
                 NavigationLink("settings.automationHelp") { AutomationHelpView() }
+                Toggle("settings.notify", isOn: $notify)
+                    .onChange(of: notify) { _, on in
+                        if on { Task { await PaymentNotifier.requestPermission() } }
+                    }
                 Picker("settings.defaultCurrency", selection: $defaultCurrency) {
                     Text(verbatim: "CRC").tag("CRC")
                     Text(verbatim: "USD").tag("USD")

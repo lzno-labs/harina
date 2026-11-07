@@ -1,2 +1,5 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 "intent.phrase ${applicationName}" = "Registrar pago en ${applicationName}";
+"siri.phrase.expense ${applicationName}" = "Anota un gasto en ${applicationName}";
+"siri.phrase.kind ${kind} ${applicationName}" = "Anota un ${kind} en ${applicationName}";
+"siri.phrase.add ${applicationName}" = "Anotar en ${applicationName}";

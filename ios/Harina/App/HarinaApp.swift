@@ -9,6 +9,7 @@ import SwiftUI
 @main
 struct HarinaApp: App {
     static let refreshTask = "app.lzno.harina.sync"
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var phase
     @StateObject private var lock = AppLock()
     @StateObject private var sync = SyncService.shared
