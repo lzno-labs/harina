@@ -324,3 +324,4 @@
 "automation.link27.step1" = "Toca «Agregar atajo» y, en Atajos, confirma con «Agregar atajo».";
 "automation.link27.step2" = "El atajo ya trae su automatización: ábrelo, elige tus tarjetas y marca «Ejecutar inmediatamente».";
 "automation.link27.step3" = "Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
+"form.edit" = "Editar";
