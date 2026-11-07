@@ -81,11 +81,11 @@ struct HarinaShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: AddMovementIntent(),
             phrases: [
-                "siri.phrase.expense \(.applicationName)",
-                "siri.phrase.kind \(\.$kind) \(.applicationName)",
-                "siri.phrase.add \(.applicationName)",
+                "voice.phrase.expense \(.applicationName)",
+                "voice.phrase.kind \(\.$kind) \(.applicationName)",
+                "voice.phrase.add \(.applicationName)",
             ],
-            shortTitle: "siri.short",
+            shortTitle: "voice.short",
             systemImageName: "mic.fill"
         )
         AppShortcut(

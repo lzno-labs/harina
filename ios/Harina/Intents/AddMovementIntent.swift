@@ -7,23 +7,23 @@ import SwiftData
 /// "Oye Siri, anota un gasto en harina" (docs/design/siri-y-notificaciones.md): for payments with no
 /// automatic signal (SINPE Móvil, cash, transfers). Saves on the iPhone first, so it works offline.
 struct AddMovementIntent: AppIntent {
-    static let title: LocalizedStringResource = "siri.title"
-    static let description = IntentDescription("siri.description")
+    static let title: LocalizedStringResource = "voice.title"
+    static let description = IntentDescription("voice.description")
     static let openAppWhenRun = false
 
-    @Parameter(title: "siri.param.amount", requestValueDialog: IntentDialog("siri.ask.amount"))
+    @Parameter(title: "voice.param.amount", requestValueDialog: IntentDialog("voice.ask.amount"))
     var amount: Double
 
-    @Parameter(title: "siri.param.concept", requestValueDialog: IntentDialog("siri.ask.concept"))
+    @Parameter(title: "voice.param.concept", requestValueDialog: IntentDialog("voice.ask.concept"))
     var concept: String
 
-    @Parameter(title: "siri.param.kind", default: .expense)
+    @Parameter(title: "voice.param.kind", default: .expense)
     var kind: MovementKind
 
-    @Parameter(title: "siri.param.currency")
+    @Parameter(title: "voice.param.currency")
     var currency: MovementCurrency?
 
-    @Parameter(title: "siri.param.category")
+    @Parameter(title: "voice.param.category")
     var category: CategoryEntity?
 
     @MainActor
@@ -31,7 +31,7 @@ struct AddMovementIntent: AppIntent {
         let cur = currency?.rawValue ?? AppSettings.defaultCurrency
         let scale = pow(10.0, Double(Money.minorUnits(cur)))
         let minor = Int64((amount * scale).rounded())
-        guard minor > 0 else { throw $amount.needsValueError(IntentDialog("siri.ask.amount")) }
+        guard minor > 0 else { throw $amount.needsValueError(IntentDialog("voice.ask.amount")) }
 
         let context = Store.container.mainContext
         var dto = TransactionDTO(
@@ -51,33 +51,33 @@ struct AddMovementIntent: AppIntent {
 
         let money = Formatting.money(minor, cur)
         let name = brain.category(dto.category_id)?.displayName
-        let text = name.map { String(localized: "siri.done.category \(money) \(dto.merchant ?? "") \($0)") }
-            ?? String(localized: "siri.done \(money) \(dto.merchant ?? "")")
+        let text = name.map { String(localized: "voice.done.category \(money) \(dto.merchant ?? "") \($0)") }
+            ?? String(localized: "voice.done \(money) \(dto.merchant ?? "")")
         return .result(dialog: IntentDialog(stringLiteral: text))
     }
 }
 
 enum MovementKind: String, AppEnum {
     case expense, income
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "siri.kind.type"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "voice.kind.type"
     static let caseDisplayRepresentations: [MovementKind: DisplayRepresentation] = [
-        .expense: "siri.kind.expense",
-        .income: "siri.kind.income",
+        .expense: "voice.kind.expense",
+        .income: "voice.kind.income",
     ]
 }
 
 enum MovementCurrency: String, AppEnum {
     case CRC, USD
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "siri.currency.type"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "voice.currency.type"
     static let caseDisplayRepresentations: [MovementCurrency: DisplayRepresentation] = [
-        .CRC: "siri.currency.CRC",
-        .USD: "siri.currency.USD",
+        .CRC: "voice.currency.CRC",
+        .USD: "voice.currency.USD",
     ]
 }
 
 /// A category Siri can match by name ("en comida").
 struct CategoryEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "siri.category.type"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "voice.category.type"
     static let defaultQuery = CategoryQuery()
 
     let id: String
