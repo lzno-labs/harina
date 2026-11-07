@@ -155,6 +155,16 @@ struct MovementForm: View {
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
         .navigationTitle(LocalizedStringKey(movement == nil ? "form.titleNew" : "form.titleEdit"))
+        // The summary hides its navigation bar; the editor always shows it (back, and delete).
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            if movement != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) { confirmDelete = true } label: { Label("form.delete", systemImage: "trash") }
+                        .tint(Theme.spend)
+                }
+            }
+        }
         .alert("form.invalidAmount", isPresented: $invalid) {}
         .confirmationDialog("form.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("form.delete", role: .destructive) {

@@ -475,35 +475,95 @@ struct DayGroup: Identifiable {
     var id: Date { day }
 }
 
-/// Movements grouped by day, with the day's spending.
+/// Movements grouped by day, with the day's spending. Tap to edit; hold for Editar and Borrar.
 struct DayGroups: View {
     let movements: [Movement]
     let categories: [CategoryItem]
+    @State private var editing: Movement?
+    @State private var deleting: Movement?
 
     var body: some View {
         let days = Dictionary(grouping: movements) { Calendar.current.startOfDay(for: $0.occurredAt) }
             .map { DayGroup(day: $0.key, list: $0.value) }
             .sorted { $0.day > $1.day }
-        ForEach(days) { group in
-            let day = group.day
-            let list = group.list
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(days) { group in
                 HStack {
-                    Text(Formatting.dayHeader(day)).textCase(.uppercase)
+                    Text(Formatting.dayHeader(group.day)).textCase(.uppercase)
                     Spacer()
-                    Text(Formatting.dayTotals(list)).monospacedDigit()
+                    Text(Formatting.dayTotals(group.list)).monospacedDigit()
                 }
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
                 .padding(.top, 10)
-                ForEach(list.sorted { $0.occurredAt > $1.occurredAt }) { m in
-                    NavigationLink { MovementForm(movement: m) } label: {
+                ForEach(group.list.sorted { $0.occurredAt > $1.occurredAt }) { m in
+                    Button { editing = m } label: {
                         MovementRow(movement: m, category: categories.first { $0.id == m.categoryId })
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, 5)
+                    .movementRowActions(m, editing: $editing, deleting: $deleting)
                 }
             }
+        }
+        .movementEditing(editing: $editing, deleting: $deleting)
+    }
+}
+
+/// Hold a movement: Editar, Borrar.
+private struct MovementRowActions: ViewModifier {
+    let movement: Movement
+    @Binding var editing: Movement?
+    @Binding var deleting: Movement?
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            Button { editing = movement } label: { Label("form.edit", systemImage: "pencil") }
+            Button(role: .destructive) { deleting = movement } label: { Label("form.delete", systemImage: "trash") }
+        }
+    }
+}
+
+/// Opens the editor for `editing` and confirms before deleting `deleting` (a tombstone that syncs).
+private struct MovementEditing: ViewModifier {
+    @Binding var editing: Movement?
+    @Binding var deleting: Movement?
+    @Environment(\.modelContext) private var context
+    @EnvironmentObject private var sync: SyncService
+
+    func body(content: Content) -> some View {
+        content
+            .navigationDestination(item: $editing) { MovementForm(movement: $0) }
+            .confirmationDialog("form.confirmDelete",
+                                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                                titleVisibility: .visible) {
+                Button("form.delete", role: .destructive) {
+                    if let m = deleting { MovementActions.delete(m, context) }
+                    deleting = nil
+                    Task { await sync.sync() }
+                }
+            }
+    }
+}
+
+extension View {
+    func movementRowActions(_ m: Movement, editing: Binding<Movement?>, deleting: Binding<Movement?>) -> some View {
+        modifier(MovementRowActions(movement: m, editing: editing, deleting: deleting))
+    }
+
+    func movementEditing(editing: Binding<Movement?>, deleting: Binding<Movement?>) -> some View {
+        modifier(MovementEditing(editing: editing, deleting: deleting))
+    }
+}
+
+enum MovementActions {
+    /// Deleting is a tombstone, so iPhones and the web receive it when they sync.
+    @MainActor
+    static func delete(_ m: Movement, _ context: ModelContext) {
+        withAnimation(.snappy) {
+            m.deleted = true
+            m.touch()
+            try? context.save()
         }
     }
 }
@@ -514,6 +574,8 @@ struct MovementsView: View {
     @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
     @State private var query = ""
     @State private var filter = "all"
+    @State private var editing: Movement?
+    @State private var deleting: Movement?
     static let filters = ["all", "expense", "income", "apple_pay"]
 
     private var filtered: [Movement] {
@@ -525,8 +587,11 @@ struct MovementsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+        let days = Dictionary(grouping: Array(filtered.prefix(300))) { Calendar.current.startOfDay(for: $0.occurredAt) }
+            .map { DayGroup(day: $0.key, list: $0.value) }
+            .sorted { $0.day > $1.day }
+        List {
+            Section {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(Self.filters, id: \.self) { f in
@@ -535,21 +600,46 @@ struct MovementsView: View {
                         }
                     }
                 }
-                if filtered.isEmpty {
-                    EmptyState(emoji: "🔎", title: "movements.title", text: "movements.empty").card()
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        DayGroups(movements: Array(filtered.prefix(300)), categories: categories)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+            if days.isEmpty {
+                EmptyState(emoji: "🔎", title: "movements.title", text: "movements.empty")
+                    .listRowBackground(Color.clear)
+            }
+            ForEach(days) { group in
+                Section {
+                    ForEach(group.list.sorted { $0.occurredAt > $1.occurredAt }) { m in
+                        Button { editing = m } label: {
+                            MovementRow(movement: m, category: categories.first { $0.id == m.categoryId })
+                        }
+                        .buttonStyle(.plain)
+                        // Swipe left to delete, right to edit; or hold for both.
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button { deleting = m } label: { Label("form.delete", systemImage: "trash") }
+                                .tint(.red)
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button { editing = m } label: { Label("form.edit", systemImage: "pencil") }
+                                .tint(Color(hex: 0x4C8DFF))
+                        }
+                        .movementRowActions(m, editing: $editing, deleting: $deleting)
                     }
-                    .card()
+                } header: {
+                    HStack {
+                        Text(Formatting.dayHeader(group.day))
+                        Spacer()
+                        Text(Formatting.dayTotals(group.list)).monospacedDigit()
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .background(Theme.background)
         .navigationTitle("movements.title")
         .searchable(text: $query, prompt: Text("movements.search"))
+        .movementEditing(editing: $editing, deleting: $deleting)
     }
 }
 
