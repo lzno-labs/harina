@@ -322,6 +322,7 @@
 "automation.link.step2" = "En Atajos, pestaña «Automatización», toca «+» y elige «Transacción». Marca tus tarjetas, deja «Toco» y elige «Ejecutar inmediatamente».";
 "automation.link.step3" = "Toca «Siguiente» y elige el atajo «Registrar pago en harina». No hay que configurar nada más.";
 "automation.link27.step1" = "Toca «Agregar atajo» y, en Atajos, confirma con «Agregar atajo».";
-"automation.link27.step2" = "En Atajos, abre «Registrar pago en harina» y toca «Automatización desactivada» para activarla. Si te lo ofrece, elige que se ejecute sin preguntar.";
-"automation.link27.step3" = "Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
+"automation.link27.step2" = "Cuando se abra el atajo, toca la flecha de atrás hasta llegar a «Biblioteca» y entra a «Automatización».";
+"automation.link27.step3" = "Activa el interruptor de «Cuando use un pase o tarjeta de pago de Wallet sin contacto», el que dice «Registrar pago en harina».";
+"automation.link27.step4" = "Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
 "form.edit" = "Editar";

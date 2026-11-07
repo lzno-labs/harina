@@ -19,7 +19,7 @@ enum AutomationGuide {
             return (1...6).map { "automation.step\($0)" + (short ? ".short" : "") }
         }
         if #available(iOS 27, *) {
-            return (1...3).map { "automation.link27.step\($0)" }
+            return (1...4).map { "automation.link27.step\($0)" }
         }
         return (1...3).map { "automation.link.step\($0)" }
     }
