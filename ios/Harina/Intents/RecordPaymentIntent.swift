@@ -60,11 +60,13 @@ struct RecordPaymentIntent: AppIntent {
             await PaymentNotifier.askCategory(for: dto, ranked: ranked + rest)
         }
         let money = Formatting.money(dto.amount_minor, dto.currency)
+        // Envelope of the payment's category: what is left, and an alert at 80 % and 100 %.
+        let envelope = await Reminders.envelopeLine(for: dto, space: account?.space ?? "", notify: true)
         let shown = dto.needs_review == 1
             ? String(localized: "intent.record.savedReview")
             : autoCategory.map { String(localized: "intent.record.savedAuto \(money) \($0.displayName)") }
             ?? String(localized: "intent.record.saved \(money)")
-        return .result(dialog: IntentDialog(stringLiteral: shown))
+        return .result(dialog: IntentDialog(stringLiteral: [shown, envelope].compactMap { $0 }.joined(separator: " ")))
     }
 
     /// The account whose card matches what Wallet reports, in any space; a new personal account named

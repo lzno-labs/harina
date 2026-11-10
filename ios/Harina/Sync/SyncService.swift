@@ -71,6 +71,9 @@ final class SyncService: ObservableObject {
         for m in (try? context.fetch(FetchDescriptor<Movement>())) ?? [] { m.dirty = true }
         for c in (try? context.fetch(FetchDescriptor<CategoryItem>())) ?? [] { c.dirty = true }
         for a in (try? context.fetch(FetchDescriptor<AccountItem>())) ?? [] { a.dirty = true }
+        for x in (try? context.fetch(FetchDescriptor<ReminderItem>())) ?? [] { x.dirty = true }
+        for x in (try? context.fetch(FetchDescriptor<BudgetItem>())) ?? [] { x.dirty = true }
+        for x in (try? context.fetch(FetchDescriptor<PotItem>())) ?? [] { x.dirty = true }
         try? context.save()
     }
 
@@ -92,6 +95,7 @@ final class SyncService: ObservableObject {
             try await refreshSpaces()
             try await pushDirty()
             try await pullAll()
+            await Reminders.reschedule()
             lastSync = Date()
             lastError = nil
         } catch let e as SyncError {
@@ -124,7 +128,11 @@ final class SyncService: ObservableObject {
         let movements = try context.fetch(FetchDescriptor<Movement>(predicate: #Predicate { $0.dirty == true }))
         let categories = try context.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.dirty == true }))
         let accounts = try context.fetch(FetchDescriptor<AccountItem>(predicate: #Predicate { $0.dirty == true }))
-        let all = SyncRecords(accounts: accounts.map(\.dto), categories: categories.map(\.dto), transactions: movements.map(\.dto))
+        let reminders = try context.fetch(FetchDescriptor<ReminderItem>(predicate: #Predicate { $0.dirty == true }))
+        let budgets = try context.fetch(FetchDescriptor<BudgetItem>(predicate: #Predicate { $0.dirty == true }))
+        let pots = try context.fetch(FetchDescriptor<PotItem>(predicate: #Predicate { $0.dirty == true }))
+        let all = SyncRecords(accounts: accounts.map(\.dto), categories: categories.map(\.dto), transactions: movements.map(\.dto),
+                              reminders: reminders.map(\.dto), budgets: budgets.map(\.dto), pots: pots.map(\.dto))
         guard !all.isEmpty else { return }
         // The server takes up to 500 records per push.
         for chunk in Self.chunks(all, size: 400) {
@@ -189,13 +197,46 @@ final class SyncService: ObservableObject {
                 context.insert(AccountItem(dto, dirty: false))
             }
         }
+        for dto in r.reminders {
+            let uid = Spaces.uid(Spaces.local(dto.space_id), dto.id)
+            if let local = try? context.fetch(FetchDescriptor<ReminderItem>(predicate: #Predicate { $0.uid == uid })).first {
+                if let sentAt = pushed?.reminders.first(where: { $0.id == dto.id })?.updated_at, local.updatedAt > sentAt { continue }
+                if pushed != nil || SyncRules.serverWins(localUpdatedAt: local.updatedAt, localDirty: local.dirty, serverUpdatedAt: dto.updated_at) {
+                    local.update(from: dto)
+                }
+            } else {
+                context.insert(ReminderItem(dto, dirty: false))
+            }
+        }
+        for dto in r.budgets {
+            let uid = Spaces.uid(Spaces.local(dto.space_id), dto.id)
+            if let local = try? context.fetch(FetchDescriptor<BudgetItem>(predicate: #Predicate { $0.uid == uid })).first {
+                if let sentAt = pushed?.budgets.first(where: { $0.id == dto.id })?.updated_at, local.updatedAt > sentAt { continue }
+                if pushed != nil || SyncRules.serverWins(localUpdatedAt: local.updatedAt, localDirty: local.dirty, serverUpdatedAt: dto.updated_at) {
+                    local.update(from: dto)
+                }
+            } else {
+                context.insert(BudgetItem(dto, dirty: false))
+            }
+        }
+        for dto in r.pots {
+            let uid = Spaces.uid(Spaces.local(dto.space_id), dto.id)
+            if let local = try? context.fetch(FetchDescriptor<PotItem>(predicate: #Predicate { $0.uid == uid })).first {
+                if let sentAt = pushed?.pots.first(where: { $0.id == dto.id })?.updated_at, local.updatedAt > sentAt { continue }
+                if pushed != nil || SyncRules.serverWins(localUpdatedAt: local.updatedAt, localDirty: local.dirty, serverUpdatedAt: dto.updated_at) {
+                    local.update(from: dto)
+                }
+            } else {
+                context.insert(PotItem(dto, dirty: false))
+            }
+        }
     }
 
     private static func chunks(_ r: SyncRecords, size: Int) -> [SyncRecords] {
         // Accounts and categories first, so movements never point at a record the server lacks.
         var out: [SyncRecords] = []
-        if !r.accounts.isEmpty || !r.categories.isEmpty {
-            out.append(SyncRecords(accounts: r.accounts, categories: r.categories))
+        if !r.accounts.isEmpty || !r.categories.isEmpty || !r.reminders.isEmpty || !r.budgets.isEmpty || !r.pots.isEmpty {
+            out.append(SyncRecords(accounts: r.accounts, categories: r.categories, reminders: r.reminders, budgets: r.budgets, pots: r.pots))
         }
         var i = 0
         while i < r.transactions.count {
@@ -276,6 +317,15 @@ extension SyncService {
         }
         for a in (try? context.fetch(FetchDescriptor<AccountItem>(predicate: #Predicate { $0.space != "" }))) ?? [] where !ids.contains(a.space) {
             context.delete(a)
+        }
+        for x in (try? context.fetch(FetchDescriptor<ReminderItem>(predicate: #Predicate { $0.space != "" }))) ?? [] where !ids.contains(x.space) {
+            context.delete(x)
+        }
+        for x in (try? context.fetch(FetchDescriptor<BudgetItem>(predicate: #Predicate { $0.space != "" }))) ?? [] where !ids.contains(x.space) {
+            context.delete(x)
+        }
+        for x in (try? context.fetch(FetchDescriptor<PotItem>(predicate: #Predicate { $0.space != "" }))) ?? [] where !ids.contains(x.space) {
+            context.delete(x)
         }
         try? context.save()
     }

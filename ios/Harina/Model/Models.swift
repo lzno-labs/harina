@@ -28,9 +28,11 @@ final class Movement {
     var space: String = ""
     /// Who added it, in a shared space (person id from the server).
     var createdBy: String?
+    /// Savings pot: a deposit, a withdrawal, or an expense paid from it.
+    var potId: String?
 
     init(_ dto: TransactionDTO, dirty: Bool) {
-        space = Spaces.local(dto.space_id); createdBy = dto.created_by
+        space = Spaces.local(dto.space_id); createdBy = dto.created_by; potId = dto.pot_id
         id = dto.id; kind = dto.kind; amountMinor = dto.amount_minor; currency = dto.currency
         categoryId = dto.category_id; accountId = dto.account_id; merchant = dto.merchant; note = dto.note
         card = dto.card; source = dto.source; rawAmount = dto.raw_amount; needsReview = (dto.needs_review ?? 0) != 0
@@ -40,7 +42,7 @@ final class Movement {
     }
 
     func update(from dto: TransactionDTO) {
-        space = Spaces.local(dto.space_id); createdBy = dto.created_by ?? createdBy
+        space = Spaces.local(dto.space_id); createdBy = dto.created_by ?? createdBy; potId = dto.pot_id
         kind = dto.kind; amountMinor = dto.amount_minor; currency = dto.currency; categoryId = dto.category_id
         accountId = dto.account_id; merchant = dto.merchant; note = dto.note; card = dto.card; source = dto.source
         rawAmount = dto.raw_amount; needsReview = (dto.needs_review ?? 0) != 0
@@ -54,7 +56,8 @@ final class Movement {
                        account_id: accountId, merchant: merchant, note: note, card: card, source: source,
                        raw_amount: rawAmount, needs_review: needsReview ? 1 : 0, category_auto: categoryAuto,
                        occurred_at: ISODate.string(occurredAt),
-                       updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space), created_by: createdBy)
+                       updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space), created_by: createdBy,
+                       pot_id: potId)
     }
 
     /// Marks a local edit: new clock value, waiting to be pushed.
@@ -141,6 +144,106 @@ final class AccountItem {
     var dto: AccountDTO { AccountDTO(id: id, name: name, card: card, updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space)) }
 }
 
+// MARK: - Envelopes, reminders and savings pots (docs/design/budgets-reminders-savings.md)
+
+@Model
+final class ReminderItem {
+    @Attribute(.unique) var uid: String
+    var id: String
+    var space: String = ""
+    var name: String
+    var amountMinor: Int64?
+    var currency: String?
+    var dayOfMonth: Int
+    var categoryId: String?
+    var accountId: String?
+    var paidMonth: String?
+    var note: String?
+    var updatedAt: Int64
+    var deleted: Bool
+    var dirty: Bool
+
+    init(_ dto: ReminderDTO, dirty: Bool) {
+        space = Spaces.local(dto.space_id); uid = Spaces.uid(Spaces.local(dto.space_id), dto.id); id = dto.id
+        name = dto.name; amountMinor = dto.amount_minor; currency = dto.currency; dayOfMonth = dto.day_of_month
+        categoryId = dto.category_id; accountId = dto.account_id; paidMonth = dto.paid_month; note = dto.note
+        updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
+    }
+    func update(from dto: ReminderDTO) {
+        name = dto.name; amountMinor = dto.amount_minor; currency = dto.currency; dayOfMonth = dto.day_of_month
+        categoryId = dto.category_id; accountId = dto.account_id; paidMonth = dto.paid_month; note = dto.note
+        updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; dirty = false
+    }
+    var dto: ReminderDTO {
+        ReminderDTO(id: id, name: name, amount_minor: amountMinor, currency: currency, day_of_month: dayOfMonth,
+                    category_id: categoryId, account_id: accountId, paid_month: paidMonth, note: note,
+                    updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space))
+    }
+    func touch() { updatedAt = max(SyncRules.now(), updatedAt + 1); dirty = true }
+}
+
+@Model
+final class BudgetItem {
+    @Attribute(.unique) var uid: String
+    var id: String
+    var space: String = ""
+    var name: String
+    var amountMinor: Int64
+    var currency: String
+    /// JSON list of category ids, as the server stores it.
+    var categoryIdsJSON: String
+    var updatedAt: Int64
+    var deleted: Bool
+    var dirty: Bool
+
+    init(_ dto: BudgetDTO, dirty: Bool) {
+        space = Spaces.local(dto.space_id); uid = Spaces.uid(Spaces.local(dto.space_id), dto.id); id = dto.id
+        name = dto.name; amountMinor = dto.amount_minor; currency = dto.currency; categoryIdsJSON = dto.category_ids
+        updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
+    }
+    func update(from dto: BudgetDTO) {
+        name = dto.name; amountMinor = dto.amount_minor; currency = dto.currency; categoryIdsJSON = dto.category_ids
+        updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; dirty = false
+    }
+    var dto: BudgetDTO {
+        var d = BudgetDTO(id: id, name: name, amount_minor: amountMinor, currency: currency, category_ids: [],
+                          updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space))
+        d.category_ids = categoryIdsJSON
+        return d
+    }
+    var categoryIds: [String] { dto.categoryIds }
+    func touch() { updatedAt = max(SyncRules.now(), updatedAt + 1); dirty = true }
+}
+
+@Model
+final class PotItem {
+    @Attribute(.unique) var uid: String
+    var id: String
+    var space: String = ""
+    var name: String
+    var currency: String
+    var goalMinor: Int64?
+    var goalDate: String?
+    var updatedAt: Int64
+    var deleted: Bool
+    var dirty: Bool
+
+    init(_ dto: PotDTO, dirty: Bool) {
+        space = Spaces.local(dto.space_id); uid = Spaces.uid(Spaces.local(dto.space_id), dto.id); id = dto.id
+        name = dto.name; currency = dto.currency; goalMinor = dto.goal_minor; goalDate = dto.goal_date
+        updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
+    }
+    func update(from dto: PotDTO) {
+        name = dto.name; currency = dto.currency; goalMinor = dto.goal_minor; goalDate = dto.goal_date
+        updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; dirty = false
+    }
+    var dto: PotDTO {
+        PotDTO(id: id, name: name, currency: currency, goal_minor: goalMinor, goal_date: goalDate,
+               updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space))
+    }
+    func touch() { updatedAt = max(SyncRules.now(), updatedAt + 1); dirty = true }
+}
+
 enum Store {
     /// One container for the app and its App Intents (they run in the app's process).
     static let container: ModelContainer = {
@@ -148,6 +251,7 @@ enum Store {
             // Spaces changed the category key (ADR-0006): a new store file; test data was discarded.
             let url = URL.applicationSupportDirectory.appending(path: "harina-spaces.store")
             return try ModelContainer(for: Movement.self, CategoryItem.self, AccountItem.self,
+                                      ReminderItem.self, BudgetItem.self, PotItem.self,
                                       configurations: ModelConfiguration(url: url))
         } catch {
             fatalError("SwiftData store failed to open: \(error)")
@@ -248,5 +352,14 @@ extension Array where Element == CategoryItem {
 }
 extension Array where Element == AccountItem {
     func inSpace(_ space: String) -> [AccountItem] { filter { $0.space == space } }
+}
+extension Array where Element == ReminderItem {
+    func inSpace(_ space: String) -> [ReminderItem] { filter { $0.space == space } }
+}
+extension Array where Element == BudgetItem {
+    func inSpace(_ space: String) -> [BudgetItem] { filter { $0.space == space } }
+}
+extension Array where Element == PotItem {
+    func inSpace(_ space: String) -> [PotItem] { filter { $0.space == space } }
 }
 

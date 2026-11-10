@@ -6,6 +6,8 @@ import SwiftUI
 /// New or existing movement. Built for speed: amount first, keyboard up, one tap per choice.
 struct MovementForm: View {
     let movement: Movement?
+    /// A reminder being paid («Ya pagué»): fills in the new movement.
+    var prefill: ReminderDTO? = nil
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sync: SyncService
@@ -29,6 +31,8 @@ struct MovementForm: View {
     @State private var note = ""
     @State private var invalid = false
     @State private var moveFailed = false
+    @State private var potId: String?
+    @Query(filter: #Predicate<PotItem> { $0.deleted == false }) private var allPots: [PotItem]
     @State private var saved = false
     @State private var confirmDelete = false
     @FocusState private var amountFocused: Bool
@@ -50,6 +54,17 @@ struct MovementForm: View {
                     Text("form.income").tag("income")
                 }
                 .pickerStyle(.segmented)
+
+                let pots = allPots.inSpace(movement?.space ?? Spaces.valid(spaceM))
+                if !pots.isEmpty && kind == "expense" {
+                    Picker(selection: $potId) {
+                        Text("pots.notFromSavings").tag(String?.none)
+                        ForEach(pots, id: \.uid) { p in Text(verbatim: p.name).tag(Optional(p.id)) }
+                    } label: {
+                        Label("pots.payWith", systemImage: "banknote")
+                    }
+                    .pickerStyle(.menu)
+                }
 
                 VStack(spacing: 10) {
                     Button {
@@ -215,9 +230,17 @@ struct MovementForm: View {
 
     private func load() {
         guard let m = movement else {
-            amountFocused = true
+            if let p = prefill {
+                merchant = p.name
+                currency = p.currency ?? currency
+                categoryId = p.category_id
+                accountId = p.account_id
+                if let a = p.amount_minor { amount = Formatting.editable(a, currency) }
+            }
+            amountFocused = prefill?.amount_minor == nil
             return
         }
+        potId = m.potId
         kind = m.kind; currency = m.currency; categoryId = m.categoryId; accountId = m.accountId
         date = m.occurredAt; merchant = m.merchant ?? ""; note = m.note ?? ""
         amount = m.needsReview && m.amountMinor == 0 ? "" : Formatting.editable(m.amountMinor, m.currency)
@@ -241,6 +264,7 @@ struct MovementForm: View {
         m.currency = currency
         m.setCategory(byPerson: categoryId)
         m.accountId = accountId
+        if m.kind == "expense" || m.kind == "saving" || m.kind == "withdrawal" { m.potId = potId } else { m.potId = nil }
         m.occurredAt = date
         m.merchant = merchant.isEmpty ? nil : String(merchant.prefix(200))
         m.note = note.isEmpty ? nil : String(note.prefix(1000))
@@ -253,7 +277,7 @@ struct MovementForm: View {
         try? context.save()
         saved.toggle()
         Task { await sync.sync() }
-        if movement != nil {
+        if movement != nil || prefill != nil {
             dismiss()
         } else {
             amount = ""; merchant = ""; note = ""; categoryId = nil; date = Date()

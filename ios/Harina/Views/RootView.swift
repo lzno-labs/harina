@@ -124,7 +124,10 @@ struct MonthView: View {
                 hero(spent: spent, earned: earned, projection: projection)
                 if pending > 0 { reviewBanner(pending) }
                 PaceCard(month: month, currency: cur, movements: movements)
+                RemindersCard()
+                BudgetsCard(currency: cur, movements: movements)
                 FixedCard(brain: brain, currency: cur)
+                PotsCard(movements: movements)
                 categoriesCard(spent: spent)
                 recentCard
             }
@@ -443,9 +446,9 @@ struct MovementRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Tile(look: movement.kind == "income" && category == nil ? Looks.income : Looks.of(category))
+            Tile(look: (movement.kind == "income" || movement.kind == "saving" || movement.kind == "withdrawal") && category == nil ? Looks.income : Looks.of(category))
             VStack(alignment: .leading, spacing: 2) {
-                Text(movement.merchant ?? movement.note ?? category?.displayName ?? String(localized: "category.none"))
+                Text(movement.merchant ?? movement.note ?? (movement.kind == "saving" ? L("pots.saving") : movement.kind == "withdrawal" ? L("pots.withdrawal") : category?.displayName ?? String(localized: "category.none")))
                     .font(.body.weight(.semibold)).lineLimit(1)
                 HStack(spacing: 4) {
                     if movement.source == "apple_pay" { Image(systemName: "bolt.fill").foregroundStyle(Theme.warn).font(.caption2) }

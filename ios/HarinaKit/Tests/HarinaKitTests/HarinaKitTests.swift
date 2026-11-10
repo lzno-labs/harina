@@ -234,3 +234,65 @@ final class NotificationIdsTests: XCTestCase {
         XCTAssertEqual(NotificationIds.trimmed((1...40).map(String.init)).first, "11")
     }
 }
+
+final class MoneyToolsTests: XCTestCase {
+    var utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    func tx(_ id: String, _ kind: String = "expense", _ amount: Int64, cat: String? = nil, cur: String = "CRC",
+            at: String = "2026-11-10T12:00:00Z", pot: String? = nil, deleted: Int = 0) -> TransactionDTO {
+        TransactionDTO(id: id, kind: kind, amount_minor: amount, currency: cur, category_id: cat, source: "manual",
+                       occurred_at: at, updated_at: 1, deleted: deleted, pot_id: pot)
+    }
+
+    func testEnvelope() {
+        let txs = [
+            tx("1", "expense", 8000, cat: "a", at: "2026-11-02T12:00:00Z"),
+            tx("2", "expense", 9000, cat: "b", at: "2026-11-20T12:00:00Z"),
+            tx("3", "expense", 5000, cat: "a", at: "2026-10-30T12:00:00Z"),
+            tx("4", "expense", 5000, cat: "a", cur: "USD", at: "2026-11-05T12:00:00Z"),
+            tx("5", "expense", 5000, cat: "c", at: "2026-11-05T12:00:00Z"),
+            tx("6", "income", 5000, cat: "a", at: "2026-11-05T12:00:00Z"),
+        ]
+        let b = BudgetDTO(id: "b", name: "Mesada", amount_minor: 20000, currency: "CRC", category_ids: ["a", "b"], updated_at: 1)
+        let s = MoneyTools.budget(b, txs, month: "2026-11", calendar: utc)
+        XCTAssertEqual(s.spent, 17000)
+        XCTAssertEqual(s.left, 3000)
+        XCTAssertEqual(s.level, .warn)
+        var small = b
+        small.amount_minor = 10000
+        XCTAssertEqual(MoneyTools.budget(small, txs, month: "2026-11", calendar: utc).level, .over)
+    }
+
+    func testPot() {
+        let txs = [
+            tx("1", "saving", 1000, pot: "p"), tx("2", "saving", 500, pot: "p"), tx("3", "withdrawal", 200, pot: "p"),
+            tx("4", "expense", 300, pot: "p"), tx("5", "saving", 9999, pot: "other"), tx("6", "saving", 7777, pot: "p", deleted: 1),
+        ]
+        let s = MoneyTools.pot(PotDTO(id: "p", name: "E", currency: "CRC", goal_minor: 2000, updated_at: 1), txs)
+        XCTAssertEqual(s, MoneyTools.PotState(balance: 1000, saved: 1500, goal: 2000, progress: 0.5))
+    }
+
+    func testReminder() {
+        func at(_ s: String) -> Date { ISODate.date(s)! }
+        let r31 = ReminderDTO(id: "r", name: "x", day_of_month: 31, updated_at: 1)
+        let a = MoneyTools.reminder(r31, now: at("2026-11-10T12:00:00Z"), calendar: utc)
+        XCTAssertEqual(MoneyTools.month(a.due, calendar: utc), "2026-11")
+        XCTAssertEqual(utc.component(.day, from: a.due), 30)
+        XCTAssertEqual(a.days, 20)
+        XCTAssertEqual(a.status, .upcoming)
+        let r15 = ReminderDTO(id: "r", name: "x", day_of_month: 15, updated_at: 1)
+        XCTAssertEqual(MoneyTools.reminder(r15, now: at("2026-11-14T12:00:00Z"), calendar: utc).status, .soon)
+        XCTAssertEqual(MoneyTools.reminder(r15, now: at("2026-11-15T09:00:00Z"), calendar: utc).status, .today)
+        let r5 = ReminderDTO(id: "r", name: "x", day_of_month: 5, updated_at: 1)
+        XCTAssertEqual(MoneyTools.reminder(r5, now: at("2026-11-10T12:00:00Z"), calendar: utc).status, .late)
+        var paid = r5
+        paid.paid_month = "2026-11"
+        let p = MoneyTools.reminder(paid, now: at("2026-11-10T12:00:00Z"), calendar: utc)
+        XCTAssertEqual(p.status, .paid)
+        XCTAssertEqual(p.days, 25)
+    }
+}

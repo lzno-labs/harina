@@ -7,7 +7,7 @@ const strings = readFileSync(`${dir}/Localizable.strings`, "utf8") + readFileSyn
 const defined = new Set([...strings.matchAll(/^"([^"]+)"\s*=/gm)].map((m) => m[1].replace(/\$\{\w+\}/g, "%@").replace(/%lld/g, "%@")));
 const errors = [];
 const SYMBOL_ROOTS = new Set(["checkmark", "plus", "bolt", "dollarsign", "lock", "arrow", "chevron", "square", "circle", "faceid",
-  "qrcode", "link", "trash", "pencil", "icloud", "tray", "house", "list", "slider", "creditcard", "leaf", "desktopcomputer", "sparkles", "mic", "person"]);
+  "qrcode", "link", "trash", "pencil", "icloud", "tray", "house", "list", "slider", "creditcard", "leaf", "desktopcomputer", "sparkles", "mic", "person", "banknote", "bell", "tray"]);
 for (const f of readdirSync("ios/Harina", { recursive: true }).filter((p) => p.endsWith(".swift"))) {
   const src = readFileSync(`ios/Harina/${f}`, "utf8");
   // Literal keys look like "area.name", optionally with one interpolation: "area.name \(x)".
