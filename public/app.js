@@ -1076,7 +1076,20 @@ function viewForm(existing) {
   const date = h("input", { class: "input", type: "date", value: dateInputValue(tx.occurred_at), required: true, "aria-label": t("form.date") });
 
   const catGrid = h("div", { class: "cat-grid", role: "group", "aria-label": t("form.category") });
+  // A new expense whose merchant the history is sure about gets that category selected (✨, automatic).
+  const preselect = () => {
+    if (existing || st.kind !== "expense" || (st.category && !st.auto)) return;
+    const d = categoryDecision({ merchant: merchant.value, card: null, amount_minor: null, currency: st.currency });
+    if (d.band === "act" && d.best) {
+      st.category = d.best.id;
+      st.auto = true;
+    } else if (st.auto) {
+      st.category = null;
+      st.auto = false;
+    }
+  };
   const drawCats = () => {
+    preselect();
     const sug = !st.category ? suggestCategory(merchant.value) : null;
     const cats = live(state.categories).sort((a, b) => categoryName(a).localeCompare(categoryName(b), region));
     catGrid.replaceChildren(
@@ -1088,11 +1101,12 @@ function viewForm(existing) {
             class: "cat-opt",
             "aria-pressed": String(st.category === c.id),
             onclick: () => {
-              st.category = st.category === c.id ? null : c.id;
+              st.category = st.category === c.id && !st.auto ? null : c.id;
+              st.auto = false;
               drawCats();
             },
           },
-          sug?.id === c.id ? h("span", { class: "spark" }, icon("spark"), t("form.suggestedShort")) : null,
+          sug?.id === c.id || (st.auto && st.category === c.id) ? h("span", { class: "spark" }, icon("spark"), t("form.suggestedShort")) : null,
           tile(c),
           categoryName(c),
         ),
@@ -1149,7 +1163,7 @@ function viewForm(existing) {
             amount_minor: minor,
             currency: st.currency,
             category_id: st.category,
-            category_auto: categoryAutoAfter(tx, st.category),
+            category_auto: !existing && st.auto && st.category ? 1 : categoryAutoAfter(tx, st.category),
             account_id: st.account,
             pot_id: st.kind === "expense" || st.kind === "saving" || st.kind === "withdrawal" ? st.pot : null,
             merchant: merchant.value,

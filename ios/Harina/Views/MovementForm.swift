@@ -32,6 +32,8 @@ struct MovementForm: View {
     @State private var invalid = false
     @State private var moveFailed = false
     @State private var potId: String?
+    /// The category was set by the decision model, not by the person (shown with ✨, `category_auto` 1).
+    @State private var autoPicked = false
     @Query(filter: #Predicate<PotItem> { $0.deleted == false }) private var allPots: [PotItem]
     @State private var saved = false
     @State private var confirmDelete = false
@@ -91,6 +93,7 @@ struct MovementForm: View {
 
                 field("form.merchant") {
                     TextField("form.merchant", text: $merchant)
+                        .onChange(of: merchant) { _, _ in preselect() }
                         .padding(13)
                         .background(Theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
@@ -100,7 +103,10 @@ struct MovementForm: View {
                         ForEach(categories.sorted { $0.displayName < $1.displayName }) { c in
                             let selected = categoryId == c.id
                             Button {
-                                withAnimation(.snappy) { categoryId = selected ? nil : c.id }
+                                withAnimation(.snappy) {
+                                    categoryId = selected && !autoPicked ? nil : c.id
+                                    autoPicked = false
+                                }
                             } label: {
                                 VStack(spacing: 6) {
                                     Tile(look: Looks.of(c), size: 36)
@@ -114,7 +120,7 @@ struct MovementForm: View {
                                         .strokeBorder(selected ? Color(hex: 0xFF6A4D) : .clear, lineWidth: 2)
                                 }
                                 .overlay(alignment: .topTrailing) {
-                                    if suggestion?.id == c.id {
+                                    if suggestion?.id == c.id || (autoPicked && categoryId == c.id) {
                                         Label("form.suggestedShort", systemImage: "sparkles")
                                             .font(.caption2.weight(.heavy))
                                             .foregroundStyle(.white)
@@ -262,7 +268,12 @@ struct MovementForm: View {
         m.kind = kind
         m.amountMinor = parsed.minor
         m.currency = currency
-        m.setCategory(byPerson: categoryId)
+        if movement == nil && autoPicked {
+            m.categoryId = categoryId
+            m.categoryAuto = 1
+        } else {
+            m.setCategory(byPerson: categoryId)
+        }
         m.accountId = accountId
         if m.kind == "expense" || m.kind == "saving" || m.kind == "withdrawal" { m.potId = potId } else { m.potId = nil }
         m.occurredAt = date
@@ -270,7 +281,37 @@ struct MovementForm: View {
         m.note = note.isEmpty ? nil : String(note.prefix(1000))
         m.needsReview = false
         m.touch()
+        let needsCategory = movement == nil && categoryId == nil && kind == "expense" && AppSettings.autoCategory
         finish()
+        // Nothing chosen: the same steps as an Apple Pay payment (history, then Apple Intelligence or the
+        // hosted model if the person turned it on). Sure: it is set with ✨; otherwise it waits in «Por revisar».
+        if needsCategory {
+            let space = m.space
+            Task {
+                let decision = await Smart.categorize(m.dto, brain: Smart.brain(context, space: space))
+                guard decision.band == .act, let id = decision.categoryId, m.categoryId == nil else { return }
+                m.categoryId = id
+                m.categoryAuto = 1
+                m.touch()
+                try? context.save()
+                await sync.sync()
+            }
+        }
+    }
+
+    /// While typing the merchant of a new expense: if the history is sure, its category is selected.
+    private func preselect() {
+        guard movement == nil, kind == "expense", AppSettings.autoCategory, categoryId == nil || autoPicked, let brain else { return }
+        let d = brain.model.decide(brain.calibration, DecisionState(merchant: merchant, card: nil, amountMinor: nil, currency: currency))
+        withAnimation(.snappy) {
+            if d.band == .act, let id = d.categoryId, brain.category(id) != nil {
+                categoryId = id
+                autoPicked = true
+            } else if autoPicked {
+                categoryId = nil
+                autoPicked = false
+            }
+        }
     }
 
     private func finish() {
@@ -280,7 +321,7 @@ struct MovementForm: View {
         if movement != nil || prefill != nil {
             dismiss()
         } else {
-            amount = ""; merchant = ""; note = ""; categoryId = nil; date = Date()
+            amount = ""; merchant = ""; note = ""; categoryId = nil; autoPicked = false; date = Date()
             amountFocused = true
         }
     }
