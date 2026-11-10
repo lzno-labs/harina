@@ -7,7 +7,7 @@
 "tab.review" = "Por revisar";
 "tab.settings" = "Ajustes";
 
-"lock.reason" = "Abre harina";
+"lock.reason" = "Abre Harina";
 "lock.unlock" = "Desbloquear";
 
 "greeting.morning" = "Buenos días";
@@ -77,7 +77,7 @@
 "review.title" = "Por revisar";
 "review.empty" = "No hay nada por revisar. Cada pago nuevo con Apple Pay aparece aquí.";
 "review.emptyTitle" = "Todo al día";
-"review.intro" = "Pagos de Apple Pay sin categoría o con un monto que harina no pudo leer. Un toque y listo.";
+"review.intro" = "Pagos de Apple Pay sin categoría o con un monto que Harina no pudo leer. Un toque y listo.";
 "review.fixAmount" = "Revisar monto";
 "review.apply %@" = "Usar %@";
 "review.rawAmount %@" = "Monto recibido: %@";
@@ -110,14 +110,14 @@
 "settings.syncNow" = "Sincronizar ahora";
 "settings.unlink" = "Desvincular este iPhone";
 "settings.link" = "Vincular con el servidor";
-"settings.linkHint" = "harina funciona sin servidor. Vincúlalo para tener respaldo, la web y la exportación completa.";
+"settings.linkHint" = "Harina funciona sin servidor. Vincúlalo para tener respaldo, la web y la exportación completa.";
 "settings.capture" = "Pagos con Apple Pay";
 "settings.automationHelp" = "Cómo anotar los pagos solos";
 "settings.defaultCurrency" = "Moneda si el pago no la indica";
 "settings.data" = "Tus datos";
 "settings.export" = "Exportar CSV";
 "settings.appLock" = "Pedir Face ID al abrir";
-"settings.privacy" = "harina no usa IA, no se conecta a tu banco y no comparte tus datos con nadie.";
+"settings.privacy" = "Harina no usa IA, no se conecta a tu banco y no comparte tus datos con nadie.";
 
 "link.server" = "Dirección del servidor, por ejemplo https://harina.lzno.app";
 "link.code" = "Código de vinculación";
@@ -133,13 +133,13 @@
 "automation.step1" = "1. Abre la app Atajos y ve a la pestaña «Automatización».";
 "automation.step2" = "2. Toca «+» (o «Nueva automatización») y elige «Transacción».";
 "automation.step3" = "3. Elige tus tarjetas de Wallet, deja marcado «Toco» y elige «Ejecutar inmediatamente». Toca «Siguiente».";
-"automation.step4" = "4. Toca «Nuevo atajo en blanco» y agrega la acción «Registrar pago en harina».";
+"automation.step4" = "4. Toca «Nuevo atajo en blanco» y agrega la acción «Registrar pago en Harina».";
 "automation.step5" = "5. En «Monto» elige la variable «Entrada del atajo» y luego «Monto». En «Comercio» elige «Comercio» y en «Tarjeta», «Tarjeta o pase».";
-"automation.step6" = "6. Guarda. Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
-"automation.footer" = "harina solo recibe el comercio, el monto y el nombre de la tarjeta. No ve tu banco ni tus contraseñas.";
+"automation.step6" = "6. Guarda. Paga algo con Apple Pay y revisa que aparezca en Harina, aunque no tengas señal.";
+"automation.footer" = "Harina solo recibe el comercio, el monto y el nombre de la tarjeta. No ve tu banco ni tus contraseñas.";
 "automation.open" = "Abrir Atajos";
 
-"intent.record.title" = "Registrar pago en harina";
+"intent.record.title" = "Registrar pago en Harina";
 "intent.record.description" = "Anota un pago con Apple Pay como gasto sin categoría. Funciona sin señal.";
 "intent.record.short" = "Registrar pago";
 "intent.record.saved %@" = "Anotado: %@";
@@ -171,14 +171,14 @@
 "onboarding.continue" = "Continuar";
 "onboarding.later" = "Lo haré después";
 "onboarding.notNow" = "Ahora no";
-"onboarding.finish" = "Listo, ir a harina";
+"onboarding.finish" = "Listo, ir a Harina";
 "onboarding.welcome.title" = "Tus pagos, anotados solos";
-"onboarding.welcome.text" = "Cada vez que pagas con Apple Pay, harina lo anota. Tú solo le pones categoría.";
+"onboarding.welcome.text" = "Cada vez que pagas con Apple Pay, Harina lo anota. Tú solo le pones categoría.";
 "onboarding.welcome.f1" = "Apple Pay del iPhone y del reloj, sin escribir nada";
 "onboarding.welcome.f2" = "Colones y dólares, cada uno por su lado";
 "onboarding.welcome.f3" = "Sin conectar tu banco, sin IA, sin anuncios";
 "onboarding.currency.title" = "¿En qué moneda pagas casi siempre?";
-"onboarding.currency.text" = "harina la usa cuando un pago no dice su moneda. Puedes anotar en las dos.";
+"onboarding.currency.text" = "Harina la usa cuando un pago no dice su moneda. Puedes anotar en las dos.";
 "onboarding.currency.CRC" = "Colones";
 "onboarding.currency.USD" = "Dólares";
 "onboarding.categories.title" = "Tus categorías";
@@ -188,10 +188,10 @@
 "onboarding.capture.waiting" = "Esperando tu primer pago con Apple Pay…";
 "onboarding.capture.works %@" = "¡Funciona! Llegó un pago de %@";
 "onboarding.faceid.title" = "Protege tus finanzas";
-"onboarding.faceid.text" = "harina te pide Face ID al abrirla. Los pagos se siguen anotando solos aunque el iPhone esté bloqueado.";
+"onboarding.faceid.text" = "Harina te pide Face ID al abrirla. Los pagos se siguen anotando solos aunque el iPhone esté bloqueado.";
 "onboarding.faceid.enable" = "Usar Face ID";
 "onboarding.link.title" = "Respaldo y web";
-"onboarding.link.text" = "Opcional. Vincula el iPhone con tu servidor de harina para tener respaldo, ver todo en la computadora y exportar.";
+"onboarding.link.text" = "Opcional. Vincula el iPhone con tu servidor de Harina para tener respaldo, ver todo en la computadora y exportar.";
 "onboarding.link.qr1" = "En la computadora, abre harina: Ajustes, «Vincular iPhone».";
 "onboarding.link.qr2" = "Apunta la cámara del iPhone al código QR.";
 "onboarding.link.qr3" = "Toca el aviso y confirma en harina.";
@@ -202,7 +202,7 @@
 "automation.step1.short" = "Abre Atajos, pestaña «Automatización», y toca «+».";
 "automation.step2.short" = "Elige «Transacción».";
 "automation.step3.short" = "Marca tus tarjetas, deja «Toco» y elige «Ejecutar inmediatamente».";
-"automation.step4.short" = "«Nuevo atajo en blanco» y agrega «Registrar pago en harina».";
+"automation.step4.short" = "«Nuevo atajo en blanco» y agrega «Registrar pago en Harina».";
 "automation.step5.short" = "En Monto, Comercio y Tarjeta elige la variable «Entrada del atajo» y su campo.";
 "automation.step6.short" = "Guarda y paga algo con Apple Pay.";
 
@@ -237,14 +237,14 @@
 "deeplink.invalid" = "Ese enlace de vinculación no es válido. Genera un código nuevo en la web.";
 
 "firstcapture.title" = "¡Funciona!";
-"firstcapture.text" = "harina anotó tu primer pago con Apple Pay. ¿En qué categoría va?";
+"firstcapture.text" = "Harina anotó tu primer pago con Apple Pay. ¿En qué categoría va?";
 
 "firstweek.title" = "Primera semana";
 "firstweek.hide" = "Ocultar";
 "firstweek.iphone" = "Un pago con el iPhone";
 "firstweek.iphone.text" = "Paga con Apple Pay y mira que aparezca solo.";
 "firstweek.watch" = "Un pago con el Apple Watch";
-"firstweek.watch.text" = "Paga con el reloj. ¿Apareció en harina?";
+"firstweek.watch.text" = "Paga con el reloj. ¿Apareció en Harina?";
 "firstweek.watch.no" = "Anótalos a mano por ahora; buscaremos otra forma.";
 "firstweek.watch.yes" = "Sí, apareció";
 "firstweek.watch.notYet" = "No apareció";
@@ -273,12 +273,12 @@
 "fixed.priceUp %@" = "antes %@";
 "fixed.emptyTitle" = "Todavía no hay fijos";
 "fixed.empty" = "Cuando un mismo comercio te cobre parecido dos veces con un mes (o una semana, o un año) de diferencia, aparece aquí solo.";
-"fixed.how" = "harina detecta los cobros que se repiten con el mismo comercio y un monto parecido. «Probable» significa que solo vio dos cobros.";
+"fixed.how" = "Harina detecta los cobros que se repiten con el mismo comercio y un monto parecido. «Probable» significa que solo vio dos cobros.";
 
 "auto.title" = "Categoría automática";
 "auto.toggle" = "Categorizar sola";
-"auto.intro" = "harina categoriza sola los pagos de comercios que ya categorizaste, cuando en tu historial acierta al menos 95 de cada 100. Lo que tú elijas siempre manda. Los marca con ✨ y puedes cambiarlos.";
-"auto.mark" = "Categoría puesta por harina";
+"auto.intro" = "Harina categoriza sola los pagos de comercios que ya categorizaste, cuando en tu historial acierta al menos 95 de cada 100. Lo que tú elijas siempre manda. Los marca con ✨ y puedes cambiarlos.";
+"auto.mark" = "Categoría puesta por Harina";
 "auto.history" = "En tu historial";
 "auto.historyValue %@ %lld" = "acierta %1$@ (%2$lld pagos)";
 "auto.learning" = "aprendiendo de tus categorías";
@@ -292,17 +292,17 @@
 "intent.record.savedAuto %@ %@" = "Anotado: %1$@ en %2$@";
 "auto.na" = "sin datos";
 "ai.toggle" = "Usar Apple Intelligence";
-"ai.footer" = "Para comercios que harina todavía no conoce, le pregunta a Apple Intelligence qué categoría es. Corre en tu iPhone, sin internet, y nada sale del teléfono.";
-"ai.turnedOff" = "Activa Apple Intelligence en Ajustes del iPhone y harina la usará para comercios nuevos, sin que nada salga del teléfono.";
-"ai.notReady" = "Apple Intelligence todavía se está preparando en este iPhone. harina la usará cuando esté lista.";
-"ai.notEligible" = "Este iPhone no tiene Apple Intelligence. harina aprende solo de tu historial.";
-"hosted.toggle" = "Categorizar con el modelo de harina";
-"hosted.footer" = "Este iPhone no tiene Apple Intelligence. Para los pagos que tu historial no resuelve, harina puede preguntarle a un modelo de decisión en la nube. Es IA y viene apagado.";
-"hosted.confirmTitle" = "¿Activar el modelo de decisión de harina?";
-"hosted.confirmBody" = "Cada pago que tu historial no resuelve se envía al servidor de harina y de ahí al modelo de decisión Clef de Cloudflare, que no guarda los datos. Se envía el comercio, el monto, tus categorías y tus últimos 40 pares «comercio: categoría». Nada más: ni notas, ni tarjetas, ni fechas. Es IA y puedes apagarlo cuando quieras.";
+"ai.footer" = "Para comercios que Harina todavía no conoce, le pregunta a Apple Intelligence qué categoría es. Corre en tu iPhone, sin internet, y nada sale del teléfono.";
+"ai.turnedOff" = "Activa Apple Intelligence en Ajustes del iPhone y Harina la usará para comercios nuevos, sin que nada salga del teléfono.";
+"ai.notReady" = "Apple Intelligence todavía se está preparando en este iPhone. Harina la usará cuando esté lista.";
+"ai.notEligible" = "Este iPhone no tiene Apple Intelligence. Harina aprende solo de tu historial.";
+"hosted.toggle" = "Categorizar con el modelo de Harina";
+"hosted.footer" = "Este iPhone no tiene Apple Intelligence. Para los pagos que tu historial no resuelve, Harina puede preguntarle a un modelo de decisión en la nube. Es IA y viene apagado.";
+"hosted.confirmTitle" = "¿Activar el modelo de decisión de Harina?";
+"hosted.confirmBody" = "Cada pago que tu historial no resuelve se envía al servidor de Harina y de ahí al modelo de decisión Clef de Cloudflare, que no guarda los datos. Se envía el comercio, el monto, tus categorías y tus últimos 40 pares «comercio: categoría». Nada más: ni notas, ni tarjetas, ni fechas. Es IA y puedes apagarlo cuando quieras.";
 "hosted.confirm" = "Activar";
 "hosted.error" = "No se pudo cambiar. Revisa tu conexión y vuelve a intentar.";
-"ai.unsupported" = "Apple Intelligence necesita iOS 26 o más reciente. harina aprende solo de tu historial.";
+"ai.unsupported" = "Apple Intelligence necesita iOS 26 o más reciente. Harina aprende solo de tu historial.";
 
 "settings.notify" = "Avisarme para categorizar cada pago";
 
@@ -310,9 +310,9 @@
 "notify.body" = "¿En qué categoría va?";
 "notify.other" = "Otra…";
 "notify.reviewTitle" = "Revisa este pago";
-"notify.reviewBody %@" = "harina no pudo leer el monto: %@";
+"notify.reviewBody %@" = "Harina no pudo leer el monto: %@";
 
-"voice.title" = "Anotar en harina";
+"voice.title" = "Anotar en Harina";
 "voice.description" = "Anota un gasto o ingreso por voz, por ejemplo un SINPE Móvil o un pago en efectivo. Funciona sin señal.";
 "voice.short" = "Anotar gasto";
 "voice.param.amount" = "Monto";
@@ -335,9 +335,9 @@
 "automation.add" = "Agregar atajo";
 "automation.link.step1" = "Toca «Agregar atajo» y, en Atajos, confirma con «Agregar atajo».";
 "automation.link.step2" = "En Atajos, pestaña «Automatización», toca «+» y elige «Transacción». Marca tus tarjetas, deja «Toco» y elige «Ejecutar inmediatamente».";
-"automation.link.step3" = "Toca «Siguiente» y elige el atajo «Registrar pago en harina». No hay que configurar nada más.";
+"automation.link.step3" = "Toca «Siguiente» y elige el atajo «Registrar pago en Harina». No hay que configurar nada más.";
 "automation.link27.step1" = "Toca «Agregar atajo» y, en Atajos, confirma con «Agregar atajo».";
 "automation.link27.step2" = "Cuando se abra el atajo, toca la flecha de atrás hasta llegar a «Biblioteca» y entra a «Automatización».";
-"automation.link27.step3" = "Activa el interruptor de «Cuando use un pase o tarjeta de pago de Wallet sin contacto», el que dice «Registrar pago en harina».";
-"automation.link27.step4" = "Paga algo con Apple Pay y revisa que aparezca en harina, aunque no tengas señal.";
+"automation.link27.step3" = "Activa el interruptor de «Cuando use un pase o tarjeta de pago de Wallet sin contacto», el que dice «Registrar pago en Harina».";
+"automation.link27.step4" = "Paga algo con Apple Pay y revisa que aparezca en Harina, aunque no tengas señal.";
 "form.edit" = "Editar";

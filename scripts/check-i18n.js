@@ -10,7 +10,7 @@ const errors = [];
 const html = readFileSync("public/index.html", "utf8").replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, "");
 for (const m of html.matchAll(/>([^<]+)</g)) {
   const text = m[1].trim();
-  if (text && text !== "harina") errors.push(`public/index.html: visible text "${text}" must come from locales`);
+  if (text && text !== "Harina") errors.push(`public/index.html: visible text "${text}" must come from locales`);
 }
 for (const m of html.matchAll(/data-i18n(?:-[a-z]+)?="([^"]+)"/g)) if (!has(m[1])) errors.push(`public/index.html: missing key ${m[1]}`);
 

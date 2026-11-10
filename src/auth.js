@@ -58,9 +58,9 @@ export async function registrationOptions(db, cfg, { authenticated, setupToken }
   }
   const existing = await db.all("SELECT id, transports FROM credentials");
   const options = await generateRegistrationOptions({
-    rpName: "harina",
+    rpName: "Harina",
     rpID: cfg.rpID,
-    userName: "harina",
+    userName: "Harina",
     userID: new TextEncoder().encode("owner"),
     attestationType: "none",
     excludeCredentials: existing.map((c) => ({ id: c.id, transports: c.transports ? JSON.parse(c.transports) : undefined })),

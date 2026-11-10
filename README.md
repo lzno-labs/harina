@@ -1,11 +1,11 @@
-# harina
+# Harina
 
 Personal finance for people who pay with their phone. Log spending and income in colones and dollars, and let an iPhone shortcut record every Apple Pay payment (iPhone and, where it triggers the automation, Apple Watch) on its own, even offline. No bank connection, no AI, no tracking.
 
 [Leer en español](README.es.md)
 
 - **Server and web** (`src/`, `public/`): Node or Cloudflare Workers, SQLite. Passkey sign-in, monthly summary by currency and category, review list, export.
-- **iOS app** (`ios/`): SwiftUI, iOS 17+. The "Registrar pago en harina" Shortcuts action, offline storage, sync, Face ID.
+- **iOS app** (`ios/`): SwiftUI, iOS 17+. The "Registrar pago en Harina" Shortcuts action, offline storage, sync, Face ID.
 
 Screenshots with sample data:
 
@@ -33,9 +33,9 @@ To run on Cloudflare instead, copy `wrangler.example.toml` to `wrangler.toml`, c
 
 `GET /health` answers `{"ok": true, "core": "<commit>"}` with the value of `LZNO_CORE_SHA`.
 
-## Use harina from your AI assistant (MCP)
+## Use Harina from your AI assistant (MCP)
 
-harina is a remote MCP server at `https://<your harina>/mcp` with its own OAuth (passkey sign-in and a consent page). Add it as a custom connector:
+Harina is a remote MCP server at `https://<your harina>/mcp` with its own OAuth (passkey sign-in and a consent page). Add it as a custom connector:
 
 - **Claude** (web, desktop, mobile): Settings, Connectors, "Add custom connector", paste the URL.
 - **ChatGPT**: Plugins, "Add custom MCP server", paste the URL.
