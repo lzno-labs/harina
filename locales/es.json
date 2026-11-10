@@ -153,7 +153,7 @@
   },
   "devices": {
     "title": "iPhone vinculados",
-    "intro": "Escanea el código con la cámara del iPhone y confirma en harina. Si no puedes escanear, en el iPhone ve a Ajustes, «Vincular con el servidor», y escribe el código.",
+    "intro": "Escanea el código con la cámara del iPhone y confirma en Harina. Si no puedes escanear, en el iPhone ve a Ajustes, «Vincular con el servidor», y escribe el código.",
     "server": "Servidor: {url}",
     "newCode": "Vincular iPhone",
     "code": "Escribe este código en el iPhone. Vence a las {time}",
@@ -345,12 +345,12 @@
   },
   "connect": {
     "title": "Conectar con tu asistente",
-    "intro": "{client} quiere conectarse con tu harina.",
+    "intro": "{client} quiere conectarse con tu Harina.",
     "from": "Desde {host}",
     "canRead": "Podrá ver tus movimientos, resúmenes, fijos y categorías.",
     "canWrite": "Permitir también anotar movimientos y cambiar categorías",
     "never": "Nunca podrá borrar movimientos ni cambiar montos.",
-    "warning": "Lo que vea se procesa con las reglas de ese asistente, no las de harina. Puedes quitar este permiso cuando quieras en Ajustes, «Conexiones».",
+    "warning": "Lo que vea se procesa con las reglas de ese asistente, no las de Harina. Puedes quitar este permiso cuando quieras en Ajustes, «Conexiones».",
     "allow": "Permitir",
     "deny": "No permitir",
     "unknownClient": "Asistente sin nombre",

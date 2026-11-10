@@ -9,7 +9,8 @@
 
 A new person sees their first Apple Pay payment recorded on its own in about two minutes, without reading documentation, and starts with categories that fit them.
 
-- **iPhone onboarding**, shown once: welcome, main currency, categories, Apple Pay capture, Face ID, link to a server (optional). Value first, permissions last, everything optional can be skipped.
+- **iPhone onboarding**, shown once: welcome, main currency, categories, Apple Pay capture, Face ID, and where to keep the data. Value first, permissions last, everything optional can be skipped.
+- **Where to keep the data** (2026-11-10, owner request): the last step asks to choose between «Solo en este iPhone» and «Con un servidor» (the build's default server, for example harina.lzno.app, or the person's own), each with its pros and cons. On iPhones without Apple Intelligence, the hosted category model is listed as a server advantage. Choosing the server shows the QR steps and the manual code; choosing local finishes. Either can be changed later in Settings.
 - **Categories:** start from suggestions (the 7 PRD defaults on, more suggestions off). The person can turn them on and off, rename them, pick an emoji and a color, add their own and delete any, during onboarding and later (iPhone settings and web settings).
 - **QR linking:** the web shows a QR; the iPhone camera opens harina and links after one confirmation tap. Manual entry stays as a fallback.
 - **First payment moment:** when the first payment arrives from the automation, harina celebrates it and asks for its category.
