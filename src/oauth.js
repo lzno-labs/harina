@@ -30,7 +30,7 @@ export function protectedResourceMetadata(cfg) {
     authorization_servers: [cfg.origin],
     scopes_supported: SCOPES,
     bearer_methods_supported: ["header"],
-    resource_name: "harina",
+    resource_name: "Harina",
   };
 }
 

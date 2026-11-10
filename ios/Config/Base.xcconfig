@@ -6,7 +6,7 @@
 HARINA_BUNDLE_ID = org.example.harina
 CODE_SIGN_STYLE = Automatic
 // Info.plist text shown by iOS before the first Face ID prompt (Spanish, the app's language).
-HARINA_FACE_ID_TEXT = harina usa Face ID para que solo tú veas tus finanzas.
+HARINA_FACE_ID_TEXT = Harina usa Face ID para que solo tú veas tus finanzas.
 // iCloud link of a ready-made capture shortcut built for this bundle id (see AutomationGuide.swift).
 // Empty by default: the app shows the manual steps. Write "https:/$()/" because // starts a comment.
 HARINA_SHORTCUT_URL =

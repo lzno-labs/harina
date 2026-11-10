@@ -1,11 +1,11 @@
-# harina
+# Harina
 
 Finanzas personales para quien paga con el celular. Anota gastos e ingresos en colones y dólares, y deja que un atajo del iPhone anote solo cada pago con Apple Pay (del iPhone y, si dispara la automatización, del Apple Watch), aunque no haya señal. Sin conexión al banco, sin IA, sin rastreo.
 
 [Read in English](README.md)
 
 - **Servidor y web** (`src/`, `public/`): Node o Cloudflare Workers, SQLite. Entrada con llave de acceso (passkey), resumen del mes por moneda y categoría, lista por revisar y exportación.
-- **App de iOS** (`ios/`): SwiftUI, iOS 17 o más reciente. La acción de Atajos «Registrar pago en harina», guardado sin señal, sincronización y Face ID.
+- **App de iOS** (`ios/`): SwiftUI, iOS 17 o más reciente. La acción de Atajos «Registrar pago en Harina», guardado sin señal, sincronización y Face ID.
 
 Capturas con datos de ejemplo:
 
@@ -33,9 +33,9 @@ Para correrlo en Cloudflare, copia `wrangler.example.toml` a `wrangler.toml`, cr
 
 `GET /health` responde `{"ok": true, "core": "<commit>"}` con el valor de `LZNO_CORE_SHA`.
 
-## Usa harina desde tu asistente (MCP)
+## Usa Harina desde tu asistente (MCP)
 
-harina es un servidor MCP remoto en `https://<tu harina>/mcp`, con su propio OAuth (entras con tu llave de acceso y ves una página de permisos). Agrégalo como conector personalizado:
+Harina es un servidor MCP remoto en `https://<tu harina>/mcp`, con su propio OAuth (entras con tu llave de acceso y ves una página de permisos). Agrégalo como conector personalizado:
 
 - **Claude** (web, escritorio, celular): Ajustes, Conectores, «Agregar conector personalizado», pega la dirección.
 - **ChatGPT**: Plugins, «Add custom MCP server», pega la dirección.
