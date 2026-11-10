@@ -234,3 +234,51 @@ final class NotificationIdsTests: XCTestCase {
         XCTAssertEqual(NotificationIds.trimmed((1...40).map(String.init)).first, "11")
     }
 }
+
+final class MerchantHintTests: XCTestCase {
+    let active: Set<String> = ["default-food", "default-groceries", "default-transport", "default-health",
+                               "default-entertainment", "default-home", "default-other"]
+
+    func testWellKnownMerchants() {
+        XCTAssertEqual(MerchantHints.categoryId(for: "MUSMANNI SAN JOSE", active: active), "default-food")
+        XCTAssertEqual(MerchantHints.categoryId(for: "Automercado Escazú", active: active), "default-groceries")
+        XCTAssertEqual(MerchantHints.categoryId(for: "Uber Eats", active: active), "default-food")
+        XCTAssertEqual(MerchantHints.categoryId(for: "UBER *TRIP", active: active), "default-transport")
+        XCTAssertEqual(MerchantHints.categoryId(for: "Farmacia Fischel", active: active), "default-health")
+    }
+
+    func testFallsBackOrSkipsInactiveCategories() {
+        // Coffee is off by default, so Starbucks falls back to food; Netflix to entertainment.
+        XCTAssertEqual(MerchantHints.categoryId(for: "Starbucks Escazu", active: active), "default-food")
+        XCTAssertEqual(MerchantHints.categoryId(for: "NETFLIX.COM", active: active), "default-entertainment")
+        XCTAssertEqual(MerchantHints.categoryId(for: "Starbucks", active: active.union(["default-coffee"])), "default-coffee")
+        // Pets is off and has no fallback: no hint.
+        XCTAssertNil(MerchantHints.categoryId(for: "Veterinaria San Martin", active: active))
+    }
+
+    func testWholeWordsOnly() {
+        XCTAssertNil(MerchantHints.categoryId(for: "Supaliente", active: active))
+        XCTAssertNil(MerchantHints.categoryId(for: "Tienda Nueva", active: active))
+        XCTAssertNil(MerchantHints.categoryId(for: nil, active: active))
+    }
+
+    func testHistoryWinsOverHints() {
+        func tx(_ merchant: String, _ cat: String, _ day: Int) -> TransactionDTO {
+            TransactionDTO(id: "t\(day)\(merchant)", kind: "expense", amount_minor: 100_000, currency: "CRC", category_id: cat,
+                           merchant: merchant, source: "apple_pay", occurred_at: String(format: "2026-11-%02dT12:00:00Z", day),
+                           updated_at: 1)
+        }
+        let model = CategoryModel.train([tx("Musmanni", "default-other", 1), tx("Tienda", "default-home", 2)], active: active)
+        let cal = CategoryModel.calibrate([], active: active)
+        // Never seen: the hint acts.
+        let fresh = model.decideWithHints(cal, DecisionState(merchant: "Uber", card: nil, amountMinor: 1, currency: "CRC"), active: active)
+        XCTAssertEqual(fresh.band, .act)
+        XCTAssertEqual(fresh.categoryId, "default-transport")
+        XCTAssertEqual(fresh.source, .hint)
+        // The person put Musmanni in "other": no hint, the model decides.
+        let known = model.decideWithHints(cal, DecisionState(merchant: "Musmanni", card: nil, amountMinor: 1, currency: "CRC"), active: active)
+        XCTAssertEqual(known.source, .model)
+        XCTAssertNotEqual(known.categoryId, "default-food")
+    }
+}
+
