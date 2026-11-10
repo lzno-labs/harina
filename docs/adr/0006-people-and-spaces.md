@@ -1,6 +1,6 @@
 # ADR-0006: Several people per instance, with personal and shared spaces
 
-- **Status:** Accepted (when this PR is merged)
+- **Status:** Accepted
 - **Date:** 2026-11-10
 - **Supersedes:** ADR-0003 (extends ADR-0002, ADR-0004 and ADR-0005)
 - **Author:** owner session (claude)
