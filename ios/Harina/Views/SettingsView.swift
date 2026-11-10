@@ -26,6 +26,9 @@ struct SettingsView: View {
             Section {
                 NavigationLink { AccountView() } label: { AccountCard() }
             }
+            if sync.isLinked, sync.me?.hasPasskey == false {
+                Section { PasskeyNudge() }
+            }
             Section("settings.money") {
                 if sync.isLinked {
                     row("spaces.title", "person.2.fill", [Color(hex: 0x22C58B), Color(hex: 0x0EA5A4)],
@@ -168,6 +171,9 @@ struct AccountView: View {
                     if sync.lastError != nil { Text("settings.syncError").foregroundStyle(.orange) }
                     Button("settings.syncNow") { Task { await sync.sync() } }.disabled(sync.syncing)
                 }
+                if sync.me?.hasPasskey == false {
+                    Section { PasskeyNudge() }
+                }
                 Section {
                     NavigationLink("webcode.title") { WebCodeView() }
                 } footer: {
@@ -189,6 +195,53 @@ struct AccountView: View {
         .navigationTitle("settings.account")
         .confirmationDialog("settings.unlinkConfirm", isPresented: $confirmUnlink, titleVisibility: .visible) {
             Button("settings.unlink", role: .destructive) { sync.unlink() }
+        }
+    }
+}
+
+/// Shown while the account has no passkey: today only this iPhone can open it, so deleting the app
+/// or losing the phone would lock the person out (docs/adr/0007-passkeys-in-the-app.md).
+struct PasskeyNudge: View {
+    @EnvironmentObject private var sync: SyncService
+    @Environment(\.authorizationController) private var authController
+    @State private var working = false
+    @State private var failed = false
+
+    private var inApp: Bool { Passkeys.available(for: AppSettings.serverURL) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label {
+                Text("passkey.warning.title").font(.headline)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.warn)
+            }
+            Text(inApp ? LocalizedStringKey("passkey.warning.text") : LocalizedStringKey("passkey.warning.textWeb")).font(.subheadline).foregroundStyle(.secondary)
+            if failed { Text("passkey.createFailed").font(.footnote).foregroundStyle(.red) }
+            if inApp {
+                Button { Task { await create() } } label: {
+                    if working { ProgressView().frame(maxWidth: .infinity) } else {
+                        Label("passkey.create", systemImage: "person.badge.key.fill").frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(working)
+            } else {
+                NavigationLink("webcode.title") { WebCodeView() }.font(.subheadline.weight(.semibold))
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func create() async {
+        working = true
+        failed = false
+        defer { working = false }
+        do {
+            try await Passkeys.create(controller: authController)
+        } catch {
+            failed = !Passkeys.cancelled(error)
         }
     }
 }
@@ -298,6 +351,7 @@ struct LinkView: View {
     @State private var code = ""
     @State private var working = false
     @State private var failed: LocalizedStringKey?
+    @Environment(\.authorizationController) private var authController
 
     /// The server this build offers by default (Info.plist `HarinaDefaultServer`), if any.
     static var defaultServer: URL? {
@@ -326,6 +380,16 @@ struct LinkView: View {
                 }
             }
             Button("link.button") { Task { await link() } }.disabled(working || code.count < 8)
+            if let url = chosenServer, Passkeys.available(for: url) {
+                Section {
+                    Button { Task { await passkeySignIn(url) } } label: {
+                        Label("passkey.signIn", systemImage: "person.badge.key.fill")
+                    }
+                    .disabled(working)
+                } footer: {
+                    Text("passkey.signInHint")
+                }
+            }
             Section {
                 Button("signup.button") { Task { await signUp() } }.disabled(working)
             } header: {
@@ -345,6 +409,18 @@ struct LinkView: View {
         let url = !otherServer ? Self.defaultServer : URL(string: server.trimmingCharacters(in: .whitespaces))
         guard let url, url.scheme == "https" || url.host() == "localhost" else { return nil }
         return url
+    }
+
+    private func passkeySignIn(_ url: URL) async {
+        working = true
+        failed = nil
+        defer { working = false }
+        do {
+            try await Passkeys.signIn(server: url, controller: authController)
+            dismiss()
+        } catch {
+            if !Passkeys.cancelled(error) { failed = "passkey.failed" }
+        }
     }
 
     private func signUp() async {

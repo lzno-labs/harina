@@ -16,4 +16,8 @@ HARINA_DEFAULT_SERVER =
 // Privacy notice and terms of the default server, shown when creating an account there. Empty: hidden.
 HARINA_PRIVACY_URL =
 HARINA_TERMS_URL =
+// Host whose passkeys the app may use (docs/adr/0007-passkeys-in-the-app.md), for example
+// harina.example.org. It needs CODE_SIGN_ENTITLEMENTS with "webcredentials:<host>" in Associated
+// Domains, and the server's HARINA_APPLE_APP_IDS. Empty by default: linking is by code.
+HARINA_PASSKEY_DOMAIN =
 #include? "Signing.xcconfig"
