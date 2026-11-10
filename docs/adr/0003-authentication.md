@@ -1,6 +1,6 @@
 # ADR-0003: Passkeys on the web, device tokens linked by one-time code on the iPhone
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0006
 - **Date:** 2026-11-04
 - **Supersedes:** none
 - **Author:** founding agent (claude)
