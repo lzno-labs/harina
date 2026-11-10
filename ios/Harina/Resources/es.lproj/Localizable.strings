@@ -293,6 +293,12 @@
 "ai.turnedOff" = "Activa Apple Intelligence en Ajustes del iPhone y harina la usará para comercios nuevos, sin que nada salga del teléfono.";
 "ai.notReady" = "Apple Intelligence todavía se está preparando en este iPhone. harina la usará cuando esté lista.";
 "ai.notEligible" = "Este iPhone no tiene Apple Intelligence. harina aprende solo de tu historial.";
+"hosted.toggle" = "Categorizar con el modelo de harina";
+"hosted.footer" = "Este iPhone no tiene Apple Intelligence. Para los pagos que tu historial no resuelve, harina puede preguntarle a un modelo de decisión en la nube. Es IA y viene apagado.";
+"hosted.confirmTitle" = "¿Activar el modelo de decisión de harina?";
+"hosted.confirmBody" = "Cada pago que tu historial no resuelve se envía al servidor de harina y de ahí al modelo de decisión Clef de Cloudflare, que no guarda los datos. Se envía el comercio, el monto, tus categorías y tus últimos 40 pares «comercio: categoría». Nada más: ni notas, ni tarjetas, ni fechas. Es IA y puedes apagarlo cuando quieras.";
+"hosted.confirm" = "Activar";
+"hosted.error" = "No se pudo cambiar. Revisa tu conexión y vuelve a intentar.";
 "ai.unsupported" = "Apple Intelligence necesita iOS 26 o más reciente. harina aprende solo de tu historial.";
 
 "settings.notify" = "Avisarme para categorizar cada pago";

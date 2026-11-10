@@ -53,20 +53,36 @@ enum Smart {
         return out
     }
 
-    /// The person's history first, then Apple Intelligence on the iPhone for what is left
-    /// (docs/design/apple-intelligence.md). Only `act` assigns on its own.
+    /// The person's history first, then Apple Intelligence on the iPhone, or on devices without it the
+    /// hosted decision model if the person agreed (docs/design/apple-intelligence.md,
+    /// docs/design/hosted-decision-model.md). Only `act` assigns on its own.
     @MainActor
     static func categorize(_ dto: TransactionDTO, brain: Brain) async -> Decision {
         var d = brain.model.decide(brain.calibration, DecisionState(dto))
-        guard d.band != .act, AppSettings.appleIntelligence,
-              let g = await AppleIntelligence.guess(merchant: dto.merchant, amount: Formatting.money(dto.amount_minor, dto.currency),
-                                                    categories: brain.categories, examples: brain.examples) else { return d }
-        d.categoryId = g.id
-        d.source = .ai
-        d.band = g.sure ? .act : .suggest
-        d.ranked = [(id: g.id, p: 1)] + d.ranked.filter { $0.id != g.id }
+        guard d.band != .act else { return d }
+        func pick(_ id: String, _ source: DecisionSource, sure: Bool) {
+            d.categoryId = id
+            d.source = source
+            d.band = sure ? .act : .suggest
+            d.ranked = [(id: id, p: 1)] + d.ranked.filter { $0.id != id }
+        }
+        if AppleIntelligence.status == .available {
+            if AppSettings.appleIntelligence,
+               let g = await AppleIntelligence.guess(merchant: dto.merchant, amount: Formatting.money(dto.amount_minor, dto.currency),
+                                                     categories: brain.categories, examples: brain.examples) {
+                pick(g.id, .ai, sure: g.sure)
+            }
+        } else if AppSettings.hostedDecider,
+                  let h = await SyncService.shared.hostedCategory(merchant: dto.merchant, amountMinor: dto.amount_minor, currency: dto.currency),
+                  brain.category(h.id) != nil {
+            // Devices without Apple Intelligence, with the person's consent (docs/design/hosted-decision-model.md).
+            pick(h.id, .hosted, sure: h.confidence >= hostedActAt)
+        }
         return d
     }
+
+    /// Hosted answers at or above this confidence assign on their own; below, they are a suggestion.
+    static let hostedActAt = 0.9
 
     @MainActor
     static func brain(_ context: ModelContext) -> Brain {
@@ -203,6 +219,20 @@ struct AutoCategorySection: View {
     @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
     @AppStorage("autoCategory") private var enabled = true
     @AppStorage("appleIntelligence") private var useAI = true
+    @AppStorage("hostedDecider") private var hosted = false
+    @State private var decider: DeciderStatus?
+    @State private var askConsent = false
+    @State private var busy = false
+    @State private var failed = false
+
+    private func setHosted(_ on: Bool) {
+        busy = true
+        failed = false
+        Task {
+            do { decider = try await SyncService.shared.setDeciderConsent(on) } catch { failed = true }
+            busy = false
+        }
+    }
 
     private func aiNote(_ key: LocalizedStringKey) -> some View {
         Label { Text(key).font(.footnote).foregroundStyle(.secondary) } icon: { Image(systemName: "apple.intelligence") }
@@ -231,6 +261,22 @@ struct AutoCategorySection: View {
             case .notEligible: aiNote("ai.notEligible")
             case .unsupportedOS: aiNote("ai.unsupported")
             }
+            if AppleIntelligence.status != .available, decider?.available == true {
+                Toggle(isOn: Binding(get: { hosted }, set: { on in if on { askConsent = true } else { setHosted(false) } })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("hosted.toggle", systemImage: "cloud")
+                        Text("hosted.footer").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!enabled || busy)
+                .confirmationDialog("hosted.confirmTitle", isPresented: $askConsent, titleVisibility: .visible) {
+                    Button("hosted.confirm") { setHosted(true) }
+                    Button("app.cancel", role: .cancel) {}
+                } message: {
+                    Text("hosted.confirmBody")
+                }
+                if failed { Text("hosted.error").font(.footnote).foregroundStyle(Theme.warn) }
+            }
             LabeledContent("auto.history") {
                 Text(verbatim: cal.cases > 0 ? String(localized: "auto.historyValue \(pct(cal.accuracy)) \(cal.cases)") : L("auto.learning"))
                     .multilineTextAlignment(.trailing)
@@ -250,5 +296,6 @@ struct AutoCategorySection: View {
         } footer: {
             Text("auto.intro")
         }
+        .task { if AppleIntelligence.status != .available { decider = await SyncService.shared.deciderStatus() } }
     }
 }

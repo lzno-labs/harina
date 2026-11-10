@@ -67,10 +67,11 @@ final class SyncService: ObservableObject {
         }
     }
 
-    private func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+    func request(_ path: String, method: String = "GET", body: Data? = nil, timeout: TimeInterval? = nil) async throws -> Data {
         guard let server = AppSettings.serverURL, let token = Keychain.load() else { throw SyncError.notLinked }
         var req = URLRequest(url: URL(string: path, relativeTo: server)!)
         req.httpMethod = method
+        if let timeout { req.timeoutInterval = timeout }
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -165,3 +166,47 @@ final class SyncService: ObservableObject {
         return out
     }
 }
+
+// MARK: - Hosted category decider (docs/design/hosted-decision-model.md)
+
+struct DeciderStatus: Decodable, Sendable {
+    let available: Bool
+    let consent: Bool
+}
+
+extension SyncService {
+    /// Whether the linked server offers the hosted decider and the person agreed to use it.
+    func deciderStatus() async -> DeciderStatus? {
+        guard isLinked, let data = try? await request("/api/decider", timeout: 10) else { return nil }
+        let status = try? JSONDecoder().decode(DeciderStatus.self, from: data)
+        if let status { AppSettings.hostedDecider = status.available && status.consent }
+        return status
+    }
+
+    func setDeciderConsent(_ on: Bool) async throws -> DeciderStatus {
+        let body = try JSONSerialization.data(withJSONObject: ["on": on])
+        let status = try JSONDecoder().decode(DeciderStatus.self, from: try await request("/api/decider/consent", method: "POST", body: body, timeout: 10))
+        AppSettings.hostedDecider = status.available && status.consent
+        return status
+    }
+
+    /// The hosted decider's pick for a payment, or nil (offline, slow, no consent, nothing sure).
+    func hostedCategory(merchant: String?, amountMinor: Int64, currency: String) async -> (id: String, confidence: Double)? {
+        guard isLinked, let merchant = merchant?.trimmingCharacters(in: .whitespacesAndNewlines), !merchant.isEmpty else { return nil }
+        struct Body: Encodable { let merchant: String; let amount_minor: Int64; let currency: String }
+        struct Answer: Decodable { let category_id: String?; let confidence: Double }
+        do {
+            let data = try await request("/api/categorize", method: "POST",
+                                         body: JSONEncoder().encode(Body(merchant: merchant, amount_minor: amountMinor, currency: currency)),
+                                         timeout: 5)
+            let a = try JSONDecoder().decode(Answer.self, from: data)
+            return a.category_id.map { ($0, a.confidence) }
+        } catch SyncError.server(let code) where code == 403 || code == 404 {
+            AppSettings.hostedDecider = false // consent withdrawn elsewhere, or the server stopped offering it
+            return nil
+        } catch {
+            return nil
+        }
+    }
+}
+

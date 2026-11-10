@@ -13,6 +13,7 @@ export function configFromEnv(env = process.env) {
     cimd: env.HARINA_OAUTH_CIMD || "on",
     mcpOrigins: env.HARINA_MCP_ORIGINS || "",
     timeZone: env.HARINA_TZ || "America/Costa_Rica",
+    aiCapTokens: env.HARINA_AI_CAP_TOKENS,
   };
 }
 

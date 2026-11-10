@@ -168,6 +168,12 @@ enum AppSettings {
         get { defaults.object(forKey: "appleIntelligence") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "appleIntelligence") }
     }
+    /// The person agreed to the hosted decision model on a device without Apple Intelligence
+    /// (docs/design/hosted-decision-model.md). Mirrors the server, which also enforces it.
+    static var hostedDecider: Bool {
+        get { defaults.bool(forKey: "hostedDecider") }
+        set { defaults.set(newValue, forKey: "hostedDecider") }
+    }
     static var onboarded: Bool {
         get { defaults.bool(forKey: "onboarded") }
         set { defaults.set(newValue, forKey: "onboarded") }
