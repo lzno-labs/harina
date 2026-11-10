@@ -742,7 +742,7 @@ function viewMonth() {
         h("button", { class: "icon-btn", "aria-label": t("month.next"), onclick: () => ((state.month = shiftMonth(state.month, 1)), viewMonth()) }, icon("right")),
       ),
     ),
-    h("div", { class: "grid dash" }, startCard(), h("div", { class: "grid" }, hero, inbox, remindersCard(), chart), h("div", { class: "grid" }, budgetsCard(cur), fixedCard(cur), potsCard(), catCard), recentCard),
+    h("div", { class: "grid dash" }, startCard(), nudgeCard(cur), h("div", { class: "grid" }, hero, inbox, remindersCard(), chart), h("div", { class: "grid" }, budgetsCard(cur), fixedCard(cur), potsCard(), catCard), recentCard),
   );
 }
 
@@ -752,6 +752,55 @@ function dismissed(key) {
   } catch {
     return false;
   }
+}
+
+function dismiss(key) {
+  try {
+    localStorage.setItem(key, "1");
+  } catch {
+    // Per-browser convenience only.
+  }
+}
+
+/**
+ * One suggestion at the right moment (docs/design/onboarding.md): a fixed charge just found, an
+ * envelope once there is some spending, a first savings pot once money came in.
+ */
+function nudgeCard(cur) {
+  const ym = monthOf(new Date());
+  const seenKey = (k) => `harina.nudge.${k}`;
+  const card = (key, title, text, ...actions) =>
+    h("section", { class: "card nudge" }, h("h2", { text: title }), h("p", { class: "muted", text }),
+      h("div", { class: "nudge-actions" }, ...actions,
+        h("button", { class: "btn ghost", text: t("nudge.notNow"), onclick: () => (dismiss(seenKey(key)), router()) })));
+  const fixed = insights().recurring.find((r) => !dismissed(seenKey(`fixed:${r.key}`)));
+  if (fixed) {
+    return card(`fixed:${fixed.key}`, t("nudge.fixedTitle", { merchant: fixed.merchant }), t("nudge.fixedText", { amount: money(fixed.monthly, fixed.currency) }));
+  }
+  const month = liveTx().filter((tx) => tx.kind === "expense" && tx.currency === cur && localMonth(tx.occurred_at) === ym);
+  if (!live(state.budgets).length && month.length >= 10 && !dismissed(seenKey(`budget:${state.space}`))) {
+    const by = {};
+    for (const tx of month) if (tx.category_id) by[tx.category_id] = (by[tx.category_id] ?? 0) + tx.amount_minor;
+    const [catId, spent] = Object.entries(by).sort((a, b) => b[1] - a[1])[0] ?? [];
+    const cat = catId && state.categories.get(catId);
+    if (cat) {
+      const now = new Date();
+      const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const step = cur === "CRC" ? 500000 : 5000;
+      const suggested = Math.max(step, Math.ceil((spent * days) / now.getDate() / step) * step);
+      return card(`budget:${state.space}`, t("nudge.budgetTitle"), t("nudge.budgetText", { amount: money(spent, cur), category: categoryName(cat) }),
+        h("button", { class: "btn primary", text: t("nudge.budgetCreate", { amount: money(suggested, cur) }), onclick: () => guarded(async () => {
+          await save("budgets", { id: crypto.randomUUID(), name: categoryName(cat), amount_minor: suggested, currency: cur, category_ids: [cat.id] });
+          dismiss(seenKey(`budget:${state.space}`));
+          router();
+        }) }));
+    }
+  }
+  const income = liveTx().some((tx) => tx.kind === "income" && localMonth(tx.occurred_at) === ym);
+  if (!live(state.pots).length && income && !dismissed(seenKey(`pot:${state.space}`))) {
+    return card(`pot:${state.space}`, t("nudge.potTitle"), t("nudge.potText"), h("a", { class: "btn primary", href: "#/ajustes/ahorros", text: t("nudge.potCreate") }));
+  }
+  return null;
 }
 
 /** Three-step start list for a new installation; disappears when done or dismissed. */

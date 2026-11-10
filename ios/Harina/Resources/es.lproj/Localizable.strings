@@ -184,7 +184,7 @@
 "onboarding.welcome.text" = "Cada vez que pagas con Apple Pay, Harina lo anota. Tú solo le pones categoría.";
 "onboarding.welcome.f1" = "Apple Pay del iPhone y del reloj, sin escribir nada";
 "onboarding.welcome.f2" = "Colones y dólares, cada uno por su lado";
-"onboarding.welcome.f3" = "Sin conectar tu banco, sin IA, sin anuncios";
+"onboarding.welcome.f3" = "Sin conectar tu banco y sin anuncios";
 "onboarding.currency.title" = "¿En qué moneda pagas casi siempre?";
 "onboarding.currency.text" = "Harina la usa cuando un pago no dice su moneda. Puedes anotar en las dos.";
 "onboarding.currency.CRC" = "Colones";
@@ -489,4 +489,32 @@
 "alerts.budgetToggle" = "Sobres al 80 % y al pasarte";
 "alerts.hour" = "Hora de los avisos";
 "alerts.hint" = "Los avisos se preparan en este iPhone; nada sale del teléfono.";
+
+/* Onboarding v2: alerts and bills (docs/design/onboarding.md) */
+"onboarding.alerts.title" = "Avisos que sí sirven";
+"onboarding.alerts.text" = "Pocos y útiles. Los preparas aquí una vez.";
+"onboarding.alerts.f1" = "Categoriza cada pago con un toque, desde la notificación";
+"onboarding.alerts.f2" = "«Mañana te cobran Netflix»: el día antes de cada cobro fijo";
+"onboarding.alerts.f3" = "Recordatorios de pagos que Harina no ve";
+"onboarding.alerts.allow" = "Permitir avisos";
+"onboarding.alerts.on" = "Avisos activados";
+"onboarding.bills.title" = "¿Qué pagas cada mes que Harina no ve?";
+"onboarding.bills.text" = "Opcional. Te avisamos el día antes y el mismo día.";
+"onboarding.bills.card" = "Tarjeta de crédito";
+"onboarding.bills.power" = "Luz";
+"onboarding.bills.water" = "Agua";
+"onboarding.bills.internet" = "Internet";
+"onboarding.bills.rent" = "Alquiler";
+"onboarding.bills.phone" = "Celular";
+"onboarding.bills.day %@ %lld" = "%1$@: día %2$lld";
+"onboarding.faceid.toggle" = "Proteger Harina con Face ID";
+"nudge.fixedTitle %@" = "Encontramos %@";
+"nudge.fixedText %@" = "Se repite cada mes, unos %@. Te avisaremos un día antes de cada cobro.";
+"nudge.ok" = "Entendido";
+"nudge.budgetTitle" = "¿Le pones un tope?";
+"nudge.budgetText %@ %@" = "Llevas %1$@ en %2$@ este mes. Un sobre te dice cuánto te queda.";
+"nudge.budgetCreate %@" = "Crear sobre de %@";
+"nudge.potTitle" = "¿Apartas algo para ahorrar?";
+"nudge.potText" = "Una bolsa de ahorro con meta te muestra cuánto llevas. Pasar plata ahí no cuenta como gasto.";
+"nudge.potCreate" = "Crear un ahorro";
 
