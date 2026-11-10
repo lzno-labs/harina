@@ -43,8 +43,10 @@ Option 1.
 - **Sync** (ADR-0002 unchanged otherwise): a pull returns rows of the spaces the user belongs to,
   plus the spaces and memberships; a push is refused for spaces the user is not in. When a user
   joins a space, their devices pull that space from the start.
-- **Migration:** the existing person becomes the first user; their passkeys, devices, grants and
-  every row move to their personal space. Nothing else changes for a single-person instance.
+- **Migration:** Harina is in testing, and the owner authorized discarding existing data
+  (2026-11-10). The new schema is created from scratch: the hosted database is reset, the owner
+  registers a new passkey and relinks the iPhones (rows still on a phone sync up again). Self-hosted
+  instances in testing do the same; no data migration code is written.
 
 ## Consequences
 

@@ -42,8 +42,9 @@ space for more than one currency rule; read-only members.
 
 ## Phases
 
-1. **Users and sign-up** (migration, per-user passkeys and devices, sign-up on web and iPhone, the
-   web-access code, `HARINA_SIGNUP`, limits). The owner's data becomes their personal space.
+1. **Users and sign-up** (fresh schema, per-user passkeys and devices, sign-up on web and iPhone, the
+   web-access code, `HARINA_SIGNUP`, limits). Test data on the server is discarded (owner, 2026-11-10);
+   rows still on an iPhone sync again after relinking.
 2. **Shared spaces** (spaces, invites, card space, move a movement, space picker, per-space
    categories, who paid) on server, web and iPhone.
 3. **Legal and opening:** privacy notice and terms (empresa `legal/harina/`, owner), then
