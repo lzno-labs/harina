@@ -162,6 +162,12 @@ enum AppSettings {
         get { defaults.object(forKey: "autoCategory") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "autoCategory") }
     }
+    /// Apple Intelligence on the iPhone for merchants harina does not know yet (docs/design/apple-intelligence.md).
+    /// Runs on the device only; the person can turn it off in settings.
+    static var appleIntelligence: Bool {
+        get { defaults.object(forKey: "appleIntelligence") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "appleIntelligence") }
+    }
     static var onboarded: Bool {
         get { defaults.bool(forKey: "onboarded") }
         set { defaults.set(newValue, forKey: "onboarded") }

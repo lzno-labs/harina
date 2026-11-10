@@ -26,10 +26,13 @@ struct RecordPaymentIntent: AppIntent {
         let accountId = Self.account(forCard: card, in: context)
         var dto = PaymentCapture.movement(merchant: merchant, amountText: amount, card: card, accountId: accountId,
                                           defaultCurrency: AppSettings.defaultCurrency)
-        // Decision model (docs/design/fijos-y-categoria-automatica.md): only acts when it is sure.
+        // Decision model, well-known merchants and Apple Intelligence (docs/design/apple-intelligence.md):
+        // only acts when it is sure.
         var autoCategory: CategoryItem?
         let brain = Smart.brain(context)
-        let decision = brain.model.decide(brain.calibration, DecisionState(dto))
+        let decision = AppSettings.autoCategory && dto.needs_review == 0
+            ? await Smart.categorize(dto, brain: brain)
+            : brain.model.decide(brain.calibration, DecisionState(dto))
         if AppSettings.autoCategory, dto.needs_review == 0, decision.band == .act,
            let id = decision.categoryId, let c = brain.categories.first(where: { $0.id == id }) {
             dto.category_id = id

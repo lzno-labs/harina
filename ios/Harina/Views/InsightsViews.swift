@@ -11,12 +11,15 @@ struct Brain {
     let recurring: [Recurring]
     let categories: [CategoryItem]
     let stats: (auto: Int, corrected: Int, precision: Double?)
+    /// Recent merchants the person categorized, for Apple Intelligence to follow their habits.
+    let examples: [(merchant: String, category: String)]
 
+    var active: Set<String> { Set(categories.map(\.id)) }
     func category(_ id: String?) -> CategoryItem? { categories.first { $0.id == id } }
 
     /// Categories ranked by the model for a payment, and the one to highlight (suggest or act band).
     func ranking(for m: Movement) -> (best: CategoryItem?, ranked: [CategoryItem]) {
-        let d = model.decide(calibration, DecisionState(m.dto))
+        let d = model.decideWithHints(calibration, DecisionState(m.dto), active: active)
         let ranked = d.ranked.compactMap { r in categories.first { $0.id == r.id } }
         let rest = categories.filter { c in !ranked.contains { $0.id == c.id } }.sorted { $0.displayName < $1.displayName }
         return (d.band == .ask ? nil : category(d.categoryId), ranked + rest)
@@ -32,7 +35,38 @@ enum Smart {
                      calibration: CategoryModel.calibrate(txs, active: active),
                      recurring: Insights.recurring(txs, now: now),
                      categories: live,
-                     stats: CategoryModel.liveStats(txs))
+                     stats: CategoryModel.liveStats(txs),
+                     examples: examples(txs, live))
+    }
+
+    /// Up to 40 distinct merchants, newest first, with the category the person gave them.
+    static func examples(_ txs: [TransactionDTO], _ categories: [CategoryItem]) -> [(merchant: String, category: String)] {
+        let active = Set(categories.map(\.id))
+        var seen = Set<String>()
+        var out: [(merchant: String, category: String)] = []
+        for t in txs.filter({ CategoryModel.isLabel($0, active: active) }).sorted(by: { $0.occurred_at > $1.occurred_at }) {
+            guard let m = t.merchant?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty,
+                  seen.insert(MerchantKey.normalize(m)).inserted,
+                  let name = categories.first(where: { $0.id == t.category_id })?.displayName else { continue }
+            out.append((String(m.prefix(60)), name))
+            if out.count == 40 { break }
+        }
+        return out
+    }
+
+    /// The person's history first, then the well-known merchant list, then Apple Intelligence on the
+    /// iPhone for what is left (docs/design/apple-intelligence.md). Only `act` assigns on its own.
+    @MainActor
+    static func categorize(_ dto: TransactionDTO, brain: Brain) async -> Decision {
+        var d = brain.model.decideWithHints(brain.calibration, DecisionState(dto), active: brain.active)
+        guard d.band != .act, AppSettings.appleIntelligence,
+              let g = await AppleIntelligence.guess(merchant: dto.merchant, amount: Formatting.money(dto.amount_minor, dto.currency),
+                                                    categories: brain.categories, examples: brain.examples) else { return d }
+        d.categoryId = g.id
+        d.source = .ai
+        d.band = g.sure ? .act : .suggest
+        d.ranked = [(id: g.id, p: 1)] + d.ranked.filter { $0.id != g.id }
+        return d
     }
 
     @MainActor
@@ -169,6 +203,11 @@ struct AutoCategorySection: View {
     @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
     @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
     @AppStorage("autoCategory") private var enabled = true
+    @AppStorage("appleIntelligence") private var useAI = true
+
+    private func aiNote(_ key: LocalizedStringKey) -> some View {
+        Label { Text(key).font(.footnote).foregroundStyle(.secondary) } icon: { Image(systemName: "apple.intelligence") }
+    }
 
     private func pct(_ x: Double?) -> String { x.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? L("auto.na") }
 
@@ -178,6 +217,20 @@ struct AutoCategorySection: View {
         Section {
             Toggle(isOn: $enabled) {
                 Label("auto.toggle", systemImage: "sparkles")
+            }
+            switch AppleIntelligence.status {
+            case .available:
+                Toggle(isOn: $useAI) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("ai.toggle", systemImage: "apple.intelligence")
+                        Text("ai.footer").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!enabled)
+            case .turnedOff: aiNote("ai.turnedOff")
+            case .notReady: aiNote("ai.notReady")
+            case .notEligible: aiNote("ai.notEligible")
+            case .unsupportedOS: aiNote("ai.unsupported")
             }
             LabeledContent("auto.history") {
                 Text(verbatim: cal.cases > 0 ? String(localized: "auto.historyValue \(pct(cal.accuracy)) \(cal.cases)") : L("auto.learning"))
