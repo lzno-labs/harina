@@ -54,9 +54,11 @@ public struct Decision: Sendable {
     public var categoryId: String?
     public var confidence: Double
     public var ranked: [(id: String, p: Double)]
-    /// Who made the call: the person's history, the well-known merchant list or Apple Intelligence.
+    /// Who made the call: the person's history or Apple Intelligence.
     public var source: DecisionSource = .model
 }
+
+public enum DecisionSource: String, Sendable { case model, ai }
 
 /// Multinomial naive Bayes over merchant, merchant words, card and amount bucket.
 public struct CategoryModel: Sendable {

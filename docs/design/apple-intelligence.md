@@ -1,4 +1,4 @@
-# Automatic category: well-known merchants and Apple Intelligence
+# Automatic category: Apple Intelligence for what the history does not cover
 
 Status: accepted, 2026-11-10. Extends `fijos-y-categoria-automatica.md`.
 
@@ -10,16 +10,11 @@ cold start: correct, but slow to become useful.
 
 ## Decision
 
-Three steps, each used only when the previous one is not sure. Nothing leaves the phone.
+Two steps, the second only when the first is not sure. Nothing leaves the phone.
 
 1. **The person's history** (unchanged). It acts when calibration says it is right at least 95
-   times in 100. A merchant the person categorized is never overridden by steps 2 or 3.
-2. **Well-known merchants** (`HarinaKit/MerchantHints.swift`). A short, curated, open list of
-   Costa Rican chains and services mapped to suggested category keys (`default-<key>`), with
-   fallbacks (Starbucks: coffee, else food). Matching is by whole normalized words. It only applies
-   to merchants with no history and to categories the person has active; it acts (assigns on its
-   own, `category_auto = 1`), so the first correction teaches step 1 and the hint stops applying.
-3. **Apple Intelligence on the iPhone** (Foundation Models framework, iOS 26+, devices with Apple
+   times in 100. A merchant the person categorized is decided by their history.
+2. **Apple Intelligence on the iPhone** (Foundation Models framework, iOS 26+, devices with Apple
    Intelligence). Guided generation (`@Generable`) returns the name of one of the person's
    categories, or "ninguna", plus `sure`. The prompt holds the category names, up to 40 recent
    merchant to category examples from the person's history, and the new payment's merchant and
@@ -27,11 +22,11 @@ Three steps, each used only when the previous one is not sure. Nothing leaves th
    error or more than 8 seconds: the payment is saved the usual way and the notification asks.
 
 Same rules for Apple Pay captures (`RecordPaymentIntent`) and Siri entries (`AddMovementIntent`).
-The review screen ranks with steps 1 and 2 (no model call while scrolling).
+The review screen ranks with step 1 only (no model call while scrolling).
 
 ## Privacy and AI disclosure
 
-- Step 3 runs on the device. No server, no account, no cost. `AGENTS.md` §8 asks to say when
+- Step 2 runs on the device. No server, no account, no cost. `AGENTS.md` §8 asks to say when
   something uses AI: settings show a toggle «Usar Apple Intelligence», on by default, with the
   explanation that it runs on the iPhone and nothing leaves it. Devices without Apple Intelligence
   see why it is not used.
@@ -41,18 +36,21 @@ The review screen ranks with steps 1 and 2 (no model call while scrolling).
 
 ## Not done (and why)
 
+- **A curated list of well-known merchants**: rejected by the owner. A large deterministic list
+  is costly to maintain and is not how harina should learn.
 - **Private Cloud Compute** (iOS 27): it also needs a device with Apple Intelligence, so it does
-  not help an iPhone 14 Pro; it needs an entitlement Apple grants on request, and data would leave
-  the phone, which needs explicit consent and a PRD change. Revisit if on-device answers are poor.
+  not help devices without it; it needs an entitlement Apple grants on request, and data would
+  leave the phone, which needs explicit consent and a PRD change. Revisit if on-device answers are poor.
 - **Wallet's merchant category**: the Transaction trigger can filter by category, but the
   shortcut input only exposes amount, merchant, card and name.
-- **Web**: the web keeps the local model only; hints could be ported with a shared fixture later.
 - **Hosted model** (Cloudflare Workers AI): not needed; zero cost and no data leaving the phone.
+
+Devices without Apple Intelligence keep today's behavior: they learn from the person's history.
 
 ## Data format
 
-No change. AI and hint assignments are `category_auto = 1` like the local model, so training keeps
-ignoring them, a correction becomes `2`, and live stats count them together.
+No change. AI assignments are `category_auto = 1` like the local model, so training keeps ignoring
+them, a correction becomes `2`, and live stats count them together.
 
 ## How we will know it works
 

@@ -14,12 +14,11 @@ struct Brain {
     /// Recent merchants the person categorized, for Apple Intelligence to follow their habits.
     let examples: [(merchant: String, category: String)]
 
-    var active: Set<String> { Set(categories.map(\.id)) }
     func category(_ id: String?) -> CategoryItem? { categories.first { $0.id == id } }
 
     /// Categories ranked by the model for a payment, and the one to highlight (suggest or act band).
     func ranking(for m: Movement) -> (best: CategoryItem?, ranked: [CategoryItem]) {
-        let d = model.decideWithHints(calibration, DecisionState(m.dto), active: active)
+        let d = model.decide(calibration, DecisionState(m.dto))
         let ranked = d.ranked.compactMap { r in categories.first { $0.id == r.id } }
         let rest = categories.filter { c in !ranked.contains { $0.id == c.id } }.sorted { $0.displayName < $1.displayName }
         return (d.band == .ask ? nil : category(d.categoryId), ranked + rest)
@@ -54,11 +53,11 @@ enum Smart {
         return out
     }
 
-    /// The person's history first, then the well-known merchant list, then Apple Intelligence on the
-    /// iPhone for what is left (docs/design/apple-intelligence.md). Only `act` assigns on its own.
+    /// The person's history first, then Apple Intelligence on the iPhone for what is left
+    /// (docs/design/apple-intelligence.md). Only `act` assigns on its own.
     @MainActor
     static func categorize(_ dto: TransactionDTO, brain: Brain) async -> Decision {
-        var d = brain.model.decideWithHints(brain.calibration, DecisionState(dto), active: brain.active)
+        var d = brain.model.decide(brain.calibration, DecisionState(dto))
         guard d.band != .act, AppSettings.appleIntelligence,
               let g = await AppleIntelligence.guess(merchant: dto.merchant, amount: Formatting.money(dto.amount_minor, dto.currency),
                                                     categories: brain.categories, examples: brain.examples) else { return d }
