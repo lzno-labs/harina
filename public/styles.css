@@ -465,6 +465,14 @@ dialog.sheet::backdrop { background: rgba(5, 6, 12, 0.55); backdrop-filter: blur
 .row .grow span + b.mono { margin-top: 4px; }
 .muted { color: var(--muted); }
 
-/* Sign in with a code shown on the iPhone (docs/design/people-and-spaces.md). */
-.inline-form { display: flex; gap: 8px; }
-.inline-form .input { flex: 1; min-width: 0; text-transform: uppercase; }
+/* Sign-in actions and the code shown on the iPhone (docs/design/people-and-spaces.md). */
+.btn.large { width: 100%; min-height: 54px; padding: 0 18px; font-size: 16px; }
+.btn.primary { min-height: 54px; padding-top: 0; padding-bottom: 0; }
+.auth-actions { display: grid; gap: 12px; }
+.auth-code { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); text-align: left; }
+.auth-card .auth-code h2 { font-size: 17px; margin: 0 0 6px; letter-spacing: -0.01em; }
+.auth-card .auth-code p { margin: 0 0 14px; font-size: 14px; }
+.inline-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+.auth-card .inline-form .input { margin: 0; min-height: 54px; text-transform: uppercase; letter-spacing: 0.08em; }
+.inline-form .btn.large { width: auto; }
+.auth-card .inline-form .input::placeholder { text-transform: none; letter-spacing: 0; }

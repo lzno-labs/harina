@@ -35,9 +35,10 @@
     "button": "Entrar con llave de acceso",
     "subtitle": "Tus finanzas, claras y en un solo lugar.",
     "signup": "Crear cuenta nueva",
-    "codeHelp": "¿Empezaste en el iPhone? En la app ve a Ajustes, «Entrar en la computadora», y escribe aquí el código.",
+    "codeHelp": "En la app ve a Ajustes, «Entrar en la computadora», y escribe aquí el código que te muestra.",
     "codePlaceholder": "Código del iPhone",
-    "codeButton": "Entrar con código"
+    "codeButton": "Entrar",
+    "codeTitle": "¿Empezaste en el iPhone?"
   },
   "month": {
     "title": "Resumen",

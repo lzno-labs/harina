@@ -402,37 +402,46 @@ function viewLogin(session) {
     h("p", { text: t("login.subtitle") }),
     features(),
     h(
-      "button",
-      {
-        class: "btn primary",
-        onclick: () =>
-          guarded(async () => {
-            if (!supported()) throw new Error("passkey_unsupported");
-            const { challengeId, options } = await api("/api/auth/login/options", { method: "POST", body: {} });
-            const response = await getPasskey(options);
-            await api("/api/auth/login/verify", { method: "POST", body: { challengeId, response } });
-            await boot();
-          }),
-      },
-      icon("key"),
-      t("login.button"),
-    ),
-    session.signup === "open" ? h("button", { class: "btn block", onclick: () => passkeySignup() }, icon("plus"), t("login.signup")) : null,
-    h("p", { class: "muted", text: t("login.codeHelp") }),
-    h(
-      "form",
-      {
-        class: "inline-form",
-        onsubmit: (e) => {
-          e.preventDefault();
-          guarded(async () => {
-            await api("/api/auth/web-code/redeem", { method: "POST", body: { code: code.value } });
-            await boot();
-          });
+      "div",
+      { class: "auth-actions" },
+      h(
+        "button",
+        {
+          class: "btn primary",
+          onclick: () =>
+            guarded(async () => {
+              if (!supported()) throw new Error("passkey_unsupported");
+              const { challengeId, options } = await api("/api/auth/login/options", { method: "POST", body: {} });
+              const response = await getPasskey(options);
+              await api("/api/auth/login/verify", { method: "POST", body: { challengeId, response } });
+              await boot();
+            }),
         },
-      },
-      code,
-      h("button", { class: "btn" }, t("login.codeButton")),
+        icon("key"),
+        t("login.button"),
+      ),
+      session.signup === "open" ? h("button", { class: "btn large", onclick: () => passkeySignup() }, icon("plus"), t("login.signup")) : null,
+    ),
+    h(
+      "section",
+      { class: "auth-code" },
+      h("h2", { text: t("login.codeTitle") }),
+      h("p", { text: t("login.codeHelp") }),
+      h(
+        "form",
+        {
+          class: "inline-form",
+          onsubmit: (e) => {
+            e.preventDefault();
+            guarded(async () => {
+              await api("/api/auth/web-code/redeem", { method: "POST", body: { code: code.value } });
+              await boot();
+            });
+          },
+        },
+        code,
+        h("button", { class: "btn large" }, t("login.codeButton")),
+      ),
     ),
   );
 }
