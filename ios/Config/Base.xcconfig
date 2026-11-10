@@ -13,4 +13,7 @@ HARINA_SHORTCUT_URL =
 // Server offered by default when linking (for example a hosted harina). Empty by default: people
 // type the address of their own server. Write "https:/$()/" because // starts a comment.
 HARINA_DEFAULT_SERVER =
+// Privacy notice and terms of the default server, shown when creating an account there. Empty: hidden.
+HARINA_PRIVACY_URL =
+HARINA_TERMS_URL =
 #include? "Signing.xcconfig"

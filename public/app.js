@@ -475,6 +475,14 @@ function viewSetup() {
   );
 }
 
+/** "Al crear tu cuenta aceptas los términos y el aviso de privacidad", when the server publishes them. */
+function legalLine(session) {
+  const { privacy, terms } = session.legal ?? {};
+  if (!privacy || !terms) return null;
+  const link = (href, key) => h("a", { href, target: "_blank", rel: "noopener", text: t(key) });
+  return h("p", { class: "legal-line" }, t("login.legalBefore"), link(terms, "login.terms"), t("login.legalAnd"), link(privacy, "login.privacy"), ".");
+}
+
 /** Sign in with a passkey, create an account (open sign-up) or use a code shown on the iPhone. */
 function viewLogin(session) {
   const code = h("input", { class: "input", name: "code", autocomplete: "one-time-code", placeholder: t("login.codePlaceholder"), "aria-label": t("login.codePlaceholder") });
@@ -502,6 +510,7 @@ function viewLogin(session) {
         t("login.button"),
       ),
       session.signup === "open" ? h("button", { class: "btn large", onclick: () => passkeySignup() }, icon("plus"), t("login.signup")) : null,
+      session.signup === "open" ? legalLine(session) : null,
     ),
     h(
       "section",

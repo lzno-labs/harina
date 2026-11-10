@@ -48,6 +48,8 @@ const error = (code, status) => json({ error: code }, status);
  * @param {string} [cfg.timeZone]    HARINA_TZ for month boundaries in assistant answers (default America/Costa_Rica)
  * @param {string} [cfg.signup]      HARINA_SIGNUP: "open" lets anyone sign up; anything else keeps it closed (first person only)
  * @param {string|number} [cfg.maxUsers]  HARINA_MAX_USERS: cap on people when sign-up is open (default 1000)
+ * @param {string} [cfg.privacyUrl]  HARINA_PRIVACY_URL: privacy notice shown when creating an account
+ * @param {string} [cfg.termsUrl]    HARINA_TERMS_URL: terms of use shown when creating an account
  * @param {Function} [cfg.fetch]     fetch used for CIMD documents (tests inject one)
  */
 export function normalizeConfig(cfg) {
@@ -63,6 +65,8 @@ export function normalizeConfig(cfg) {
     timeZone: cfg.timeZone || "America/Costa_Rica",
     defaultCurrency: cfg.defaultCurrency || "CRC",
     signup: cfg.signup === "open" ? "open" : "closed",
+    privacyUrl: /^https:\/\//.test(cfg.privacyUrl ?? "") ? cfg.privacyUrl : null,
+    termsUrl: /^https:\/\//.test(cfg.termsUrl ?? "") ? cfg.termsUrl : null,
     maxUsers: Number.isSafeInteger(Number(cfg.maxUsers)) && Number(cfg.maxUsers) > 0 ? Number(cfg.maxUsers) : DEFAULT_MAX_USERS,
     fetch: cfg.fetch ?? ((...a) => fetch(...a)),
   };
@@ -236,6 +240,7 @@ export function createApp({ db, config, assets, decider = null }) {
           user: user ? { id: user.id, name: user.name, hasPasskey: await auth.hasPasskey(db, user.id) } : null,
           setupNeeded: await auth.setupNeeded(db),
           signup: cfg.signup,
+          legal: { privacy: cfg.privacyUrl, terms: cfg.termsUrl },
           origin: cfg.origin,
         });
       }

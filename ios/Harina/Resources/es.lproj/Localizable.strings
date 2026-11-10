@@ -404,4 +404,7 @@
 "spaces.moveTo" = "Mover a otro espacio";
 "spaces.moveFailed" = "No se pudo mover. Necesitas conexión.";
 "app.done" = "Listo";
-
+"legal.before" = "Al crear tu cuenta aceptas los ";
+"legal.terms" = "términos de uso";
+"legal.and" = " y el ";
+"legal.privacy" = "aviso de privacidad";

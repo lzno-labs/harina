@@ -212,6 +212,7 @@ struct OnboardingView: View {
                                       + (AppleIntelligence.status == .available ? [] : ["onboarding.storage.server.pro4"]),
                                   cons: ["onboarding.storage.server.con1", "onboarding.storage.server.con2"])
                     if storage == .server {
+                        LegalLine()
                         if let signupError { Text(signupError).font(.footnote).foregroundStyle(.red) }
                         Text("onboarding.link.haveAccount").font(.subheadline.weight(.semibold))
                         VStack(alignment: .leading, spacing: 12) {

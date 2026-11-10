@@ -175,3 +175,31 @@ struct InviteSheet: View {
         }
     }
 }
+
+/// "Al crear tu cuenta aceptas los términos de uso y el aviso de privacidad" with links, when the build
+/// names them (Info.plist `HarinaTermsURL`, `HarinaPrivacyURL`).
+struct LegalLine: View {
+    private static func url(_ key: String) -> URL? {
+        guard let text = Bundle.main.object(forInfoDictionaryKey: key) as? String, text.hasPrefix("https://") else { return nil }
+        return URL(string: text)
+    }
+
+    var body: some View {
+        if let terms = Self.url("HarinaTermsURL"), let privacy = Self.url("HarinaPrivacyURL") {
+            Text(Self.line(terms: terms, privacy: privacy))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private static func line(terms: URL, privacy: URL) -> AttributedString {
+        func link(_ key: String, _ url: URL) -> AttributedString {
+            var a = AttributedString(L(key))
+            a.link = url
+            a.underlineStyle = .single
+            return a
+        }
+        return AttributedString(L("legal.before")) + link("legal.terms", terms) + AttributedString(L("legal.and"))
+            + link("legal.privacy", privacy) + AttributedString(".")
+    }
+}

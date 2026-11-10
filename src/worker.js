@@ -22,6 +22,8 @@ export default {
           aiCapTokens: env.HARINA_AI_CAP_TOKENS,
           signup: env.HARINA_SIGNUP,
           maxUsers: env.HARINA_MAX_USERS,
+          privacyUrl: env.HARINA_PRIVACY_URL,
+          termsUrl: env.HARINA_TERMS_URL,
         },
         decider: createDecider(env),
         assets: (req) => env.ASSETS.fetch(req),

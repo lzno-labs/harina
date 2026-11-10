@@ -198,7 +198,10 @@ struct LinkView: View {
             } header: {
                 Text("signup.header")
             } footer: {
-                Text("signup.footer")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("signup.footer")
+                    LegalLine()
+                }
             }
             if let failed { Text(failed).foregroundStyle(.red) }
         }

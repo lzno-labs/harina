@@ -52,6 +52,8 @@ targets:
         # iCloud link of a ready-made capture shortcut for this build (empty: manual steps).
         HarinaShortcutURL: $(HARINA_SHORTCUT_URL)
         HarinaDefaultServer: $(HARINA_DEFAULT_SERVER)
+        HarinaPrivacyURL: $(HARINA_PRIVACY_URL)
+        HarinaTermsURL: $(HARINA_TERMS_URL)
 schemes:
   Harina:
     build:

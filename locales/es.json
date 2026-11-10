@@ -38,7 +38,11 @@
     "codeHelp": "En la app ve a Ajustes, «Entrar en la computadora», y escribe aquí el código que te muestra.",
     "codePlaceholder": "Código del iPhone",
     "codeButton": "Entrar",
-    "codeTitle": "¿Empezaste en el iPhone?"
+    "codeTitle": "¿Empezaste en el iPhone?",
+    "legalBefore": "Al crear tu cuenta aceptas los ",
+    "terms": "términos de uso",
+    "legalAnd": " y el ",
+    "privacy": "aviso de privacidad"
   },
   "month": {
     "title": "Resumen",
