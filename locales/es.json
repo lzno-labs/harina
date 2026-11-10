@@ -494,5 +494,16 @@
     "confirmDelete": "¿Borrar el recordatorio «{name}»?",
     "hint": "Para pagos que Harina no ve, como la tarjeta o la luz. El iPhone te avisa el día antes y el mismo día. «Ya pagué» te ayuda a anotarlo.",
     "tomorrow": "Mañana"
+  },
+  "nudge": {
+    "fixedTitle": "Encontramos {merchant}",
+    "fixedText": "Se repite cada mes, unos {amount}. En el iPhone te avisaremos un día antes de cada cobro.",
+    "budgetTitle": "¿Le pones un tope?",
+    "budgetText": "Llevas {amount} en {category} este mes. Un sobre te dice cuánto te queda.",
+    "budgetCreate": "Crear sobre de {amount}",
+    "potTitle": "¿Apartas algo para ahorrar?",
+    "potText": "Una bolsa de ahorro con meta te muestra cuánto llevas. Pasar plata ahí no cuenta como gasto.",
+    "potCreate": "Crear un ahorro",
+    "notNow": "Ahora no"
   }
 }

@@ -121,6 +121,7 @@ struct MonthView: View {
             VStack(spacing: 16) {
                 header
                 FirstWeekCard()
+                NudgeCard(movements: movements, recurring: brain.recurring, currency: cur)
                 hero(spent: spent, earned: earned, projection: projection)
                 if pending > 0 { reviewBanner(pending) }
                 PaceCard(month: month, currency: cur, movements: movements)

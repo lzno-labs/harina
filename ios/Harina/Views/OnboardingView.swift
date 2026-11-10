@@ -20,11 +20,15 @@ struct OnboardingView: View {
     @State private var storage: Storage?
     @State private var signingUp = false
     @State private var signupError: LocalizedStringKey?
+    @State private var alertsAllowed = false
+    @State private var bills = Set<String>()
+    @State private var billDays: [String: Int] = [:]
+    @AppStorage("appLock") private var appLock = false
 
     /// Where the person keeps their data: only on this iPhone, or also on a server (docs/design/onboarding.md).
     private enum Storage { case local, server }
 
-    private let steps = 6
+    private let steps = 5
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,10 +43,9 @@ struct OnboardingView: View {
             TabView(selection: $step) {
                 welcome.tag(0)
                 currencyStep.tag(1)
-                categoriesStep.tag(2)
-                captureStep.tag(3)
-                faceIDStep.tag(4)
-                linkStep.tag(5)
+                captureStep.tag(2)
+                alertsStep.tag(3)
+                linkStep.tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.snappy, value: step)
@@ -108,17 +111,6 @@ struct OnboardingView: View {
         }
     }
 
-    private var categoriesStep: some View {
-        page {
-            VStack(alignment: .leading, spacing: 18) {
-                title("onboarding.categories.title", "onboarding.categories.text")
-                CategoriesGrid()
-            }
-        } actions: {
-            Button("onboarding.continue", action: next).buttonStyle(BrandButtonStyle())
-        }
-    }
-
     private var captureStep: some View {
         page {
             VStack(alignment: .leading, spacing: 16) {
@@ -169,27 +161,54 @@ struct OnboardingView: View {
         }
     }
 
-    private var faceIDStep: some View {
+    /// One permission for every alert, explained by what it brings, and the monthly payments Harina
+    /// cannot see turned into reminders with one tap each (docs/design/onboarding.md).
+    private var alertsStep: some View {
         page {
-            VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: "faceid").font(.system(size: 56, weight: .semibold)).foregroundStyle(Theme.brand)
-                title("onboarding.faceid.title", "onboarding.faceid.text")
-            }
-        } actions: {
-            Button {
-                let ctx = LAContext()
-                var error: NSError?
-                guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else { return next() }
-                ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: L("lock.reason")) { ok, _ in
-                    Task { @MainActor in
-                        if ok { AppSettings.appLock = true }
-                        next()
+            VStack(alignment: .leading, spacing: 16) {
+                title("onboarding.alerts.title", "onboarding.alerts.text")
+                VStack(spacing: 10) {
+                    feature("hand.tap.fill", [Color(hex: 0xFF5F6D), Color(hex: 0xFF4F6D)], "onboarding.alerts.f1")
+                    feature("calendar.badge.clock", [Color(hex: 0x8B5CF6), Color(hex: 0x6366F1)], "onboarding.alerts.f2")
+                    feature("bell.fill", [Color(hex: 0xFFB547), Color(hex: 0xFF7A45)], "onboarding.alerts.f3")
+                }
+                if alertsAllowed {
+                    Label("onboarding.alerts.on", systemImage: "checkmark.circle.fill").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.earn)
+                } else {
+                    Button { Task { alertsAllowed = await PaymentNotifier.requestPermission() } } label: {
+                        Label("onboarding.alerts.allow", systemImage: "bell.badge")
+                    }
+                    .buttonStyle(ChipStyle())
+                }
+                Text("onboarding.bills.title").font(.headline).padding(.top, 6)
+                Text("onboarding.bills.text").font(.subheadline).foregroundStyle(.secondary)
+                FlowChips(items: Self.bills.map { ($0, L("onboarding.bills." + $0)) }, selected: $bills)
+                ForEach(Self.bills.filter { bills.contains($0) }, id: \.self) { key in
+                    Stepper(value: Binding(get: { billDays[key] ?? 15 }, set: { billDays[key] = $0 }), in: 1...31) {
+                        Text("onboarding.bills.day \(L("onboarding.bills." + key)) \(billDays[key] ?? 15)").font(.subheadline)
                     }
                 }
-            } label: { Label("onboarding.faceid.enable", systemImage: "faceid") }
+            }
+        } actions: {
+            Button("onboarding.continue") {
+                saveBills()
+                next()
+            }
             .buttonStyle(BrandButtonStyle())
-            Button("onboarding.notNow", action: next).font(.subheadline.weight(.semibold))
         }
+        .task { alertsAllowed = await PaymentNotifier.authorized() }
+    }
+
+    static let bills = ["card", "power", "water", "internet", "rent", "phone"]
+
+    /// Each chosen bill becomes a monthly reminder in the personal space.
+    private func saveBills() {
+        for key in Self.bills where bills.contains(key) {
+            context.insert(ReminderItem(ReminderDTO(id: UUID().uuidString, name: L("onboarding.bills." + key), day_of_month: billDays[key] ?? 15,
+                                                    updated_at: SyncRules.now()), dirty: true))
+        }
+        bills = []
+        try? context.save()
     }
 
     private var linkStep: some View {
@@ -230,6 +249,10 @@ struct OnboardingView: View {
                     }
                     Text("onboarding.storage.later").font(.footnote).foregroundStyle(.secondary)
                 }
+                Toggle(isOn: Binding(get: { appLock }, set: { on in if on { enableFaceID() } else { appLock = false } })) {
+                    Label("onboarding.faceid.toggle", systemImage: "faceid")
+                }
+                .card()
             }
         } actions: {
             if sync.isLinked {
@@ -307,6 +330,15 @@ struct OnboardingView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func enableFaceID() {
+        let ctx = LAContext()
+        var error: NSError?
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else { return }
+        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: L("lock.reason")) { ok, _ in
+            Task { @MainActor in appLock = ok }
+        }
     }
 
     private func done() {
@@ -505,3 +537,57 @@ struct FirstWeekCard: View {
         }
     }
 }
+
+/// Chips that wrap onto several lines; tap to select or unselect.
+struct FlowChips: View {
+    let items: [(key: String, label: String)]
+    @Binding var selected: Set<String>
+
+    var body: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(items, id: \.key) { item in
+                let on = selected.contains(item.key)
+                Button {
+                    if on { selected.remove(item.key) } else { selected.insert(item.key) }
+                } label: {
+                    Label(item.label, systemImage: on ? "checkmark" : "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(on ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Theme.fill), in: Capsule())
+                        .foregroundStyle(on ? Color.white : Color.primary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// Places views left to right, wrapping to the next line when the row is full.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0, widest: CGFloat = 0
+        for v in subviews {
+            let size = v.sizeThatFits(.unspecified)
+            if x > 0 && x + size.width > width { x = 0; y += row + spacing; row = 0 }
+            x += size.width + spacing
+            widest = max(widest, x - spacing)
+            row = max(row, size.height)
+        }
+        return CGSize(width: min(widest, width), height: y + row)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, row: CGFloat = 0
+        for v in subviews {
+            let size = v.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + size.width > bounds.maxX { x = bounds.minX; y += row + spacing; row = 0 }
+            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            row = max(row, size.height)
+        }
+    }
+}
+

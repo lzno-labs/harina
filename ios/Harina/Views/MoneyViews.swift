@@ -462,3 +462,90 @@ struct AlertsSettingsView: View {
         .task { _ = await PaymentNotifier.requestPermission() }
     }
 }
+
+// MARK: - Suggestions at the right moment (docs/design/onboarding.md)
+
+/// One suggestion at a time in the summary: a fixed charge just found, an envelope once there is some
+/// spending, a first savings pot once money came in. Each one can be dismissed for good.
+struct NudgeCard: View {
+    let movements: [Movement]
+    let recurring: [Recurring]
+    let currency: String
+    @Environment(\.modelContext) private var context
+    @Query(filter: #Predicate<BudgetItem> { $0.deleted == false }) private var budgets: [BudgetItem]
+    @Query(filter: #Predicate<PotItem> { $0.deleted == false }) private var pots: [PotItem]
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    @AppStorage("space") private var space = ""
+    @AppStorage("nudgesSeen") private var seen = ""
+    @State private var creatingPot = false
+
+    private enum Nudge {
+        case fixed(Recurring)
+        case budget(CategoryItem, spent: Int64, suggested: Int64)
+        case pot
+    }
+
+    private func isSeen(_ key: String) -> Bool { seen.split(separator: "|").contains(Substring(key)) }
+    private func markSeen(_ key: String) { withAnimation { seen = (seen.isEmpty ? key : seen + "|" + key) } }
+
+    private var nudge: (key: String, value: Nudge)? {
+        let current = Spaces.valid(space)
+        if let r = recurring.first(where: { !isSeen("fixed:" + $0.key) }) { return ("fixed:" + r.key, .fixed(r)) }
+        let monthExpenses = movements.filter { $0.kind == "expense" && $0.currency == currency && MoneyTools.month($0.occurredAt) == MoneyTools.month(Date()) }
+        if budgets.inSpace(current).isEmpty, monthExpenses.count >= 10, !isSeen("budget:" + current) {
+            let byCategory = Dictionary(grouping: monthExpenses.filter { $0.categoryId != nil }, by: { $0.categoryId! })
+                .mapValues { $0.reduce(Int64(0)) { $0 + $1.amountMinor } }
+            if let top = byCategory.max(by: { $0.value < $1.value }), let cat = categories.inSpace(current).first(where: { $0.id == top.key }) {
+                let cal = Calendar.current
+                let day = max(1, cal.component(.day, from: Date()))
+                let days = cal.range(of: .day, in: .month, for: Date())?.count ?? 30
+                let projected = top.value * Int64(days) / Int64(day)
+                let step: Int64 = currency == "CRC" ? 500_000 : 5_000
+                return ("budget:" + current, .budget(cat, spent: top.value, suggested: max(step, (projected + step - 1) / step * step)))
+            }
+        }
+        let income = movements.contains { $0.kind == "income" && MoneyTools.month($0.occurredAt) == MoneyTools.month(Date()) }
+        if pots.inSpace(current).isEmpty, income, !isSeen("pot:" + current) { return ("pot:" + current, .pot) }
+        return nil
+    }
+
+    var body: some View {
+        if let item = nudge {
+            let key = item.key
+            VStack(alignment: .leading, spacing: 10) {
+                switch item.value {
+                case .fixed(let r):
+                    Label { Text("nudge.fixedTitle \(r.merchant)").font(.headline) } icon: { Image(systemName: "repeat").foregroundStyle(Theme.brand) }
+                    Text("nudge.fixedText \(Formatting.money(r.monthly, r.currency))").font(.subheadline).foregroundStyle(.secondary)
+                    Button("nudge.ok") { markSeen(key) }.buttonStyle(ChipStyle())
+                case .budget(let cat, let spent, let suggested):
+                    Label { Text("nudge.budgetTitle").font(.headline) } icon: { Image(systemName: "tray.full.fill").foregroundStyle(Theme.brand) }
+                    Text("nudge.budgetText \(Formatting.money(spent, currency)) \(cat.displayName)").font(.subheadline).foregroundStyle(.secondary)
+                    HStack {
+                        Button("nudge.budgetCreate \(Formatting.money(suggested, currency))") {
+                            context.insert(BudgetItem(BudgetDTO(id: UUID().uuidString, name: cat.displayName, amount_minor: suggested, currency: currency,
+                                                                category_ids: [cat.id], updated_at: SyncRules.now(), space_id: Spaces.wire(cat.space)), dirty: true))
+                            try? context.save()
+                            Task { await SyncService.shared.sync() }
+                            markSeen(key)
+                        }
+                        .buttonStyle(BrandButtonStyle())
+                        Button("onboarding.notNow") { markSeen(key) }.font(.subheadline.weight(.semibold))
+                    }
+                case .pot:
+                    Label { Text("nudge.potTitle").font(.headline) } icon: { Image(systemName: "banknote.fill").foregroundStyle(Theme.brand) }
+                    Text("nudge.potText").font(.subheadline).foregroundStyle(.secondary)
+                    HStack {
+                        Button("nudge.potCreate") { creatingPot = true }.buttonStyle(BrandButtonStyle())
+                        Button("onboarding.notNow") { markSeen(key) }.font(.subheadline.weight(.semibold))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+            .sheet(isPresented: $creatingPot, onDismiss: { if !pots.inSpace(Spaces.valid(space)).isEmpty { markSeen(key) } }) {
+                NavigationStack { PotForm() }
+            }
+        }
+    }
+}
