@@ -427,3 +427,66 @@
 "legal.privacyTitle" = "Aviso de privacidad";
 "legal.termsTitle" = "Términos de uso";
 
+/* Alerts (docs/design/budgets-reminders-savings.md) */
+"alerts.fixedTitle %@" = "Mañana: %@";
+"alerts.fixedBody %@" = "Se te cobra %@.";
+"alerts.reminderTomorrow" = "Mañana toca pagar:";
+"alerts.reminderToday" = "Hoy toca pagar:";
+"alerts.reminderAmount %@" = "%@. Cuando pagues, toca «Ya pagué» en Harina.";
+"alerts.reminderNoAmount" = "Cuando pagues, toca «Ya pagué» en Harina.";
+"alerts.envelopeLeft %@ %@" = "Te quedan %1$@ en %2$@.";
+"alerts.envelopeOver %@ %@" = "Te pasaste de %1$@ por %2$@.";
+"alerts.envelopeWarnTitle %@" = "%@ casi se acaba";
+"alerts.envelopeOverTitle %@" = "Te pasaste de %@";
+
+/* Envelopes, savings and reminders */
+"budgets.title" = "Sobres";
+"budgets.left %@" = "Te quedan %@";
+"budgets.over %@" = "Te pasaste por %@";
+"budgets.of %@ %@" = "%1$@ de %2$@";
+"budgets.empty" = "Todavía no tienes sobres. Toca + para crear uno, por ejemplo «Mesada».";
+"budgets.new" = "Nuevo sobre";
+"budgets.name" = "Nombre, por ejemplo «Mesada»";
+"budgets.amount" = "Tope del mes";
+"budgets.categories" = "Categorías que cuentan";
+"budgets.create" = "Crear sobre";
+"budgets.hint" = "Un sobre suma lo que gastas en el mes en sus categorías. Te avisamos al 80 % y al pasarte. Es del espacio que estás viendo.";
+"pots.title" = "Ahorros";
+"pots.saving" = "Ahorro";
+"pots.withdrawal" = "Retiro de ahorro";
+"pots.goal %lld %@" = "%1$lld %% de %2$@";
+"pots.empty" = "Todavía no tienes ahorros. Toca + para crear una bolsa, por ejemplo «Emergencias».";
+"pots.new" = "Nueva bolsa de ahorro";
+"pots.name" = "Nombre, por ejemplo «Emergencias»";
+"pots.goalOptional" = "Meta (opcional)";
+"pots.goalDate" = "Fecha de la meta";
+"pots.create" = "Crear bolsa";
+"pots.deposit" = "Depositar";
+"pots.withdraw" = "Retirar";
+"pots.depositPrompt %@" = "¿Cuánto pasas a «%@»?";
+"pots.withdrawPrompt %@" = "¿Cuánto sacas de «%@»?";
+"pots.payWith" = "Pagar con ahorros";
+"pots.notFromSavings" = "No, dinero del día a día";
+"pots.hint" = "Pasar plata a una bolsa no cuenta como gasto del mes. Un gasto pagado con ahorros sí cuenta y baja el saldo de la bolsa.";
+"reminders.title" = "Recordatorios";
+"reminders.upcoming" = "Próximos pagos";
+"reminders.paid" = "Pagado este mes";
+"reminders.late %lld" = "Atrasado %lld días";
+"reminders.today" = "Hoy";
+"reminders.tomorrow" = "Mañana";
+"reminders.inDays %lld" = "En %lld días";
+"reminders.payNow" = "Ya pagué";
+"reminders.empty" = "Todavía no tienes recordatorios. Toca + para crear uno, por ejemplo «Tarjeta BAC».";
+"reminders.new" = "Nuevo recordatorio";
+"reminders.name" = "Qué pagar, por ejemplo «Tarjeta BAC»";
+"reminders.dayValue %lld" = "Día %lld de cada mes";
+"reminders.amountOptional" = "Monto (opcional)";
+"reminders.create" = "Crear recordatorio";
+"reminders.hint" = "Para pagos que Harina no ve, como la tarjeta o la luz. Te avisamos el día antes y el mismo día. «Ya pagué» te ayuda a anotarlo.";
+"alerts.title" = "Avisos";
+"alerts.fixedToggle" = "Cobros fijos del día siguiente";
+"alerts.reminderToggle" = "Recordatorios de pago";
+"alerts.budgetToggle" = "Sobres al 80 % y al pasarte";
+"alerts.hour" = "Hora de los avisos";
+"alerts.hint" = "Los avisos se preparan en este iPhone; nada sale del teléfono.";
+

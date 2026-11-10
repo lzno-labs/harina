@@ -23,11 +23,12 @@ export const ENTITIES = {
     ["color", "color", {}],
   ],
   transactions: [
-    ["kind", "enum", { required: true, values: ["expense", "income"] }],
+    ["kind", "enum", { required: true, values: ["expense", "income", "saving", "withdrawal"] }],
     ["amount_minor", "int", { required: true, min: 0, max: 1e15 }],
     ["currency", "currency", { required: true }],
     ["category_id", "id", {}],
     ["account_id", "id", {}],
+    ["pot_id", "id", {}],
     ["merchant", "string", { max: 200 }],
     ["note", "string", { max: 1000 }],
     ["card", "string", { max: 100 }],
@@ -36,6 +37,29 @@ export const ENTITIES = {
     ["needs_review", "bool", {}],
     ["category_auto", "int", { min: 0, max: 2 }],
     ["occurred_at", "date", { required: true }],
+  ],
+  // docs/design/budgets-reminders-savings.md
+  reminders: [
+    ["name", "string", { required: true, max: 100 }],
+    ["amount_minor", "int", { min: 0, max: 1e15 }],
+    ["currency", "currency", {}],
+    ["day_of_month", "int", { required: true, min: 1, max: 31 }],
+    ["category_id", "id", {}],
+    ["account_id", "id", {}],
+    ["paid_month", "month", {}],
+    ["note", "string", { max: 500 }],
+  ],
+  budgets: [
+    ["name", "string", { required: true, max: 100 }],
+    ["amount_minor", "int", { required: true, min: 1, max: 1e15 }],
+    ["currency", "currency", { required: true }],
+    ["category_ids", "idlist", { required: true, max: 20 }],
+  ],
+  pots: [
+    ["name", "string", { required: true, max: 100 }],
+    ["currency", "currency", { required: true }],
+    ["goal_minor", "int", { min: 1, max: 1e15 }],
+    ["goal_date", "day", {}],
   ],
 };
 
@@ -75,6 +99,27 @@ function checkField(entity, [col, type, opt], value) {
     case "bool":
       if (typeof value !== "boolean" && value !== 0 && value !== 1) throw new ValidationError("invalid_record", where);
       return value ? 1 : 0;
+    case "month":
+      if (typeof value !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new ValidationError("invalid_record", where);
+      return value;
+    case "day":
+      if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) throw new ValidationError("invalid_record", where);
+      return value;
+    case "idlist": {
+      // A JSON list of ids, stored as text; sent as a list or as its JSON.
+      let list = value;
+      if (typeof list === "string") {
+        try {
+          list = JSON.parse(list);
+        } catch {
+          throw new ValidationError("invalid_record", where);
+        }
+      }
+      if (!Array.isArray(list) || !list.length || list.length > opt.max || !list.every((x) => typeof x === "string" && ID.test(x))) {
+        throw new ValidationError("invalid_record", where);
+      }
+      return JSON.stringify([...new Set(list)]);
+    }
     case "date":
       if (typeof value !== "string" || !ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) {
         throw new ValidationError("invalid_record", where);
@@ -178,6 +223,9 @@ export async function pull(db, since, spaces, limit = PULL_LIMIT) {
   const records = {
     accounts: await db.all(`SELECT * FROM accounts WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
     categories: await db.all(`SELECT * FROM categories WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
+    reminders: await db.all(`SELECT * FROM reminders WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
+    budgets: await db.all(`SELECT * FROM budgets WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
+    pots: await db.all(`SELECT * FROM pots WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
     transactions: await db.all(`SELECT * FROM transactions WHERE seq > ? AND ${w.sql} ORDER BY seq LIMIT ?`, [since, ...w.params, limit + 1]),
   };
   let seq = await currentSeq(db);

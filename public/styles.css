@@ -501,3 +501,27 @@ dialog.sheet::backdrop { background: rgba(5, 6, 12, 0.55); backdrop-filter: blur
 .sub-head .back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .sub-head .back svg { width: 16px; height: 16px; }
 .sub-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+
+/* Envelopes, savings and reminders (docs/design/budgets-reminders-savings.md). */
+.meter { display: grid; gap: 6px; padding: 10px 0; }
+.meter + .meter { border-top: 1px solid var(--line); }
+.row.meter { padding: 14px 16px; }
+.meter-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.meter-head span { color: var(--muted); font-size: 14px; }
+.meter .bar { height: 8px; border-radius: 99px; background: var(--surface-3, rgba(127,127,127,.15)); overflow: hidden; }
+.meter .bar span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+.meter.warn .bar span { background: #f59e0b; }
+.meter.over .bar span { background: var(--spend, #ff5a73); }
+.meter.over .meter-head span { color: var(--spend, #ff5a73); font-weight: 700; }
+.meter small { color: var(--muted); }
+.pot-actions { display: flex; gap: 8px; margin-top: 6px; }
+.pot-actions .btn { padding: 8px 12px; }
+.form-group .row { gap: 10px; }
+.form-group .row.col { flex-direction: column; align-items: stretch; }
+.chips.wrap { flex-wrap: wrap; }
+.tile.xs { width: 22px; height: 22px; border-radius: 7px; font-size: 12px; margin-right: 6px; }
+.reminder.late span { color: var(--spend, #ff5a73); }
+.reminder.today span, .reminder.soon span { color: #f59e0b; font-weight: 600; }
+.row-wrap { display: flex; align-items: center; }
+.row-wrap .row { flex: 1; }
+.row-wrap .link-btn { margin-right: 12px; }

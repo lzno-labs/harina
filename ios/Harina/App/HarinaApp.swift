@@ -52,7 +52,10 @@ struct HarinaApp: App {
             switch new {
             case .active:
                 lock.unlockIfNeeded()
-                Task { await sync.sync() }
+                Task {
+                    await sync.sync()
+                    await Reminders.reschedule()
+                }
             case .background:
                 lock.lock()
                 Self.scheduleRefresh()

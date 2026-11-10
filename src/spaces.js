@@ -68,7 +68,7 @@ export async function deleteSpace(db, userId, spaceId) {
 
 async function dropSpace(db, spaceId) {
   await db.batch(
-    ["transactions", "categories", "accounts", "members", "invites"]
+    ["transactions", "categories", "accounts", "reminders", "budgets", "pots", "members", "invites"]
       .map((t) => ({ sql: `DELETE FROM ${t} WHERE space_id = ?`, params: [spaceId] }))
       .concat([{ sql: "DELETE FROM spaces WHERE id = ?", params: [spaceId] }]),
   );

@@ -14,6 +14,9 @@ struct SettingsView: View {
     @AppStorage("space") private var space = ""
     @AppStorage("appLock") private var appLock = true
     @AppStorage("autoCategory") private var autoCategory = true
+    @Query(filter: #Predicate<BudgetItem> { $0.deleted == false }) private var budgets: [BudgetItem]
+    @Query(filter: #Predicate<PotItem> { $0.deleted == false }) private var pots: [PotItem]
+    @Query(filter: #Predicate<ReminderItem> { $0.deleted == false }) private var reminders: [ReminderItem]
 
     private var current: String { Spaces.valid(space) }
     private var categories: [CategoryItem] { allCategories.inSpace(current) }
@@ -39,10 +42,18 @@ struct SettingsView: View {
                 row("auto.title", "sparkles", [Color(hex: 0xFFB547), Color(hex: 0xFF7A45)], value: autoSummary) {
                     Form { AutoCategorySection() }.navigationTitle("auto.title")
                 }
+                row("budgets.title", "tray.full.fill", [Color(hex: 0xA77BFF), Color(hex: 0xD061FF)],
+                    value: "\(budgets.inSpace(current).count)") { BudgetsView() }
+                row("pots.title", "banknote.fill", [Color(hex: 0x22D3EE), Color(hex: 0x0891B2)],
+                    value: "\(pots.inSpace(current).count)") { PotsView() }
+                row("reminders.title", "bell.fill", [Color(hex: 0xFFB547), Color(hex: 0xFF7A45)],
+                    value: "\(reminders.inSpace(current).count)") { RemindersView() }
             }
             Section("settings.capture") {
                 row("settings.captureRow", "bolt.fill", [Color(hex: 0xFF5F6D), Color(hex: 0xFF4F6D)],
                     value: AppSettings.defaultCurrency) { CaptureSettingsView() }
+                row("alerts.title", "bell.badge.fill", [Color(hex: 0x8B5CF6), Color(hex: 0x6366F1)],
+                    value: String(format: "%02d:00", Reminders.hour)) { AlertsSettingsView() }
             }
             Section {
                 Toggle(isOn: $appLock) {
