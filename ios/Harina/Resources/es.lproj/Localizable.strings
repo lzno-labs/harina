@@ -95,7 +95,7 @@
 "categories.newName" = "Nueva categoría";
 "categories.add" = "Agregar";
 
-"accounts.title" = "Cuentas";
+"accounts.title" = "Tarjetas y cuentas";
 "accounts.name" = "Nombre de la cuenta";
 "accounts.card" = "Tarjeta que reporta el atajo (opcional)";
 "accounts.cardHint" = "Las cuentas de cada tarjeta se crean solas con el primer pago. Desliza para borrar.";
@@ -408,3 +408,22 @@
 "legal.terms" = "términos de uso";
 "legal.and" = " y el ";
 "legal.privacy" = "aviso de privacidad";
+
+/* Settings as a short list */
+"settings.money" = "Tu dinero";
+"settings.captureRow" = "Pagos con Apple Pay";
+"settings.account" = "Tu cuenta";
+"settings.off" = "Apagada";
+"settings.on" = "Activada";
+"settings.autoValue %@" = "Acierta %@";
+"settings.syncedAt %@ %@" = "%1$@ · sincronizado %2$@";
+"settings.noAccount" = "Sin cuenta";
+"settings.noAccountHint" = "Tus datos están solo en este iPhone. Toca para respaldarlos.";
+"settings.webHint" = "Para ver y editar todo en la computadora.";
+"settings.deleteHint" = "Desvincular deja tus datos en este iPhone. Para borrar tu cuenta y tus datos del servidor, entra en la web: Ajustes, «Borrar mi cuenta».";
+"settings.unlinkConfirm" = "¿Desvincular este iPhone? Tus datos se quedan aquí y en el servidor.";
+"accounts.empty" = "Las tarjetas aparecen solas con el primer pago de Apple Pay de cada una. También puedes agregarlas con +.";
+"accounts.addHint" = "El nombre de la tarjeta, tal como lo muestra Wallet, ayuda a que Harina la reconozca.";
+"legal.privacyTitle" = "Aviso de privacidad";
+"legal.termsTitle" = "Términos de uso";
+

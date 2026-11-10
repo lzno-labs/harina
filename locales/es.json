@@ -42,7 +42,9 @@
     "legalBefore": "Al crear tu cuenta aceptas los ",
     "terms": "términos de uso",
     "legalAnd": " y el ",
-    "privacy": "aviso de privacidad"
+    "privacy": "aviso de privacidad",
+    "privacyTitle": "Aviso de privacidad",
+    "termsTitle": "Términos de uso"
   },
   "month": {
     "title": "Resumen",
@@ -152,7 +154,7 @@
     "suggestions": "Sugerencias para agregar"
   },
   "accounts": {
-    "title": "Cuentas",
+    "title": "Tarjetas y cuentas",
     "add": "Agregar cuenta",
     "name": "Nombre de la cuenta",
     "card": "Tarjeta que reporta el atajo (opcional)",
@@ -177,7 +179,8 @@
     "add": "Agregar otra llave de acceso",
     "added": "Llave de acceso agregada.",
     "missingTitle": "Crea tu llave de acceso",
-    "missing": "Entraste con un código del iPhone. Agrega una llave de acceso para volver a entrar desde esta computadora."
+    "missing": "Entraste con un código del iPhone. Agrega una llave de acceso para volver a entrar desde esta computadora.",
+    "create": "Crear llave de acceso"
   },
   "data": {
     "title": "Tus datos",
@@ -245,7 +248,14 @@
     "title": "Ajustes",
     "sync": "iPhone y sincronización",
     "security": "Seguridad",
-    "account": "Sesión"
+    "account": "Tu cuenta",
+    "money": "Tu dinero",
+    "devicesAndApps": "iPhones y asistentes",
+    "dataRow": "Exportar y borrar datos",
+    "autoValue": "Acierta {pct} %",
+    "on": "Activada",
+    "noName": "Ponle nombre a tu cuenta en Espacios",
+    "danger": "Con cuidado"
   },
   "start": {
     "title": "Empieza aquí",

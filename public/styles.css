@@ -489,3 +489,15 @@ dialog.sheet::backdrop { background: rgba(5, 6, 12, 0.55); backdrop-filter: blur
 .move-field span svg { width: 15px; height: 15px; margin-right: 6px; vertical-align: -2px; }
 .auth-card .legal-line { font-size: 13px; margin: 2px 0 0; }
 .legal-line a { color: inherit; text-decoration: underline; }
+
+/* Settings as a short list with one page per area. */
+.settings-hub, .settings-page { max-width: 640px; }
+.account-card { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 18px; border-radius: var(--radius, 22px); background: var(--surface); border: 1px solid var(--line); text-decoration: none; color: inherit; }
+.account-card .avatar { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; font-weight: 800; font-size: 20px; flex: none; }
+.account-card b, .account-card span { display: block; }
+.account-card .grow span { color: var(--muted); font-size: 14px; }
+.settings-hub .row-btn { text-decoration: none; color: inherit; }
+.settings-hub .value { color: var(--muted); font-size: 14px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub-head .back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.sub-head .back svg { width: 16px; height: 16px; }
+.sub-head { flex-direction: column; align-items: flex-start; gap: 2px; }

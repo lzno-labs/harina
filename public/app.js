@@ -414,7 +414,7 @@ function shell() {
 
 function markNav() {
   const hash = location.hash || "#/";
-  const base = hash.startsWith("#/editar") ? "#/movimientos" : hash;
+  const base = hash.startsWith("#/editar") ? "#/movimientos" : hash.startsWith("#/ajustes") ? "#/ajustes" : hash;
   for (const a of document.querySelectorAll(".side a, .tabbar a")) {
     if (a.getAttribute("href") === base) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
@@ -422,7 +422,9 @@ function markNav() {
 }
 
 function render(...content) {
-  main.replaceChildren(h("div", { class: "fade-in" }, spaceSwitcher(), ...content));
+  const hash = location.hash || "#/";
+  const spaceless = hash.startsWith("#/ajustes") && !/^#\/ajustes\/(categorias|tarjetas|automatica)$/.test(hash);
+  main.replaceChildren(h("div", { class: "fade-in" }, spaceless ? null : spaceSwitcher(), ...content));
   markNav();
   window.scrollTo(0, 0);
 }
@@ -1525,17 +1527,67 @@ function viewJoin(code) {
   );
 }
 
-async function viewSettings() {
+/** Settings as a short list; each area opens on its own page (#/ajustes/<area>). */
+const SETTINGS_PAGES = ["cuenta", "espacios", "categorias", "tarjetas", "automatica", "iphones", "conexiones", "datos"];
+
+async function viewSettings(page = null) {
   const [{ devices }, { connections }] = await Promise.all([api("/api/devices"), api("/api/connections")]);
   state.devices = devices;
-  const rerender = () => guarded(viewSettings);
+  const rerender = () => guarded(() => viewSettings(page));
   const codeBox = h("div");
   const row = (left, title, sub, ...right) => h("div", { class: "row" }, left, h("div", { class: "grow" }, h("b", { text: title }), sub ? h("span", { text: sub }) : null), ...right);
   const iconTile = (name, from, to) => h("span", { class: "tile sm", bg: `linear-gradient(135deg, ${from}, ${to})` }, icon(name));
-  render(
-    h("div", { class: "page-head" }, h("h1", { text: t("settings.title") })),
-    h("div", { class: "grid dash" },
-      h("div", {},
+  const sub = (titleKey, ...content) =>
+    render(
+      h("div", { class: "page-head sub-head" },
+        h("a", { class: "back", href: "#/ajustes" }, icon("left"), t("settings.title")),
+        h("h1", { text: t(titleKey) })),
+      h("div", { class: "settings-page" }, ...content),
+    );
+
+  if (page === "cuenta") {
+    const hasPasskey = Boolean(state.session?.user?.hasPasskey);
+    return sub("settings.account",
+      h("div", { class: "group" },
+        hasPasskey ? null : row(iconTile("key", "#ffb547", "#ff7a45"), t("passkeys.missingTitle"), t("passkeys.missing")),
+        h("div", { class: "row" },
+          h("button", {
+            class: hasPasskey ? "btn block" : "btn primary",
+            onclick: () =>
+              guarded(async () => {
+                const { challengeId, options } = await api("/api/auth/register/options", { method: "POST", body: {} });
+                const response = await createPasskey(options);
+                await api("/api/auth/register/verify", { method: "POST", body: { challengeId, response } });
+                if (state.session?.user) state.session.user.hasPasskey = true;
+                toast(t("passkeys.added"));
+                rerender();
+              }),
+          }, icon("key"), t(hasPasskey ? "passkeys.add" : "passkeys.create")),
+        ),
+        h("div", { class: "row" },
+          h("button", { class: "btn block", onclick: () => guarded(async () => (await api("/api/auth/logout", { method: "POST", body: {} }), boot())) }, icon("logout"), t("nav.logout")),
+        ),
+      ),
+      h("p", { class: "group-title", text: t("settings.danger") }),
+      h("div", { class: "group" },
+        h("div", { class: "row" },
+          h("button", {
+            class: "btn block danger ghost",
+            onclick: () => {
+              if (prompt(t("account.confirmDelete")) !== t("data.confirmWord")) return;
+              guarded(async () => {
+                await api("/api/account/delete", { method: "POST", body: { confirm: true } });
+                await boot();
+              });
+            },
+          }, icon("trash"), t("account.delete")),
+        ),
+      ),
+    );
+  }
+  if (page === "espacios") return sub("spaces.title", spacesGroup(rerender));
+  if (page === "categorias") {
+    return sub("categories.title",
         h("p", { class: "group-title", text: state.spaces.length > 1 ? `${t("categories.title")} · ${spaceName(currentSpace())}` : t("categories.title") }),
         h(
           "div",
@@ -1552,6 +1604,10 @@ async function viewSettings() {
           h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editCategory(null, rerender) }, icon("plus"), t("categories.add"))),
         ),
         suggestionsBox(rerender),
+    );
+  }
+  if (page === "tarjetas") {
+    return sub("accounts.title",
         h("p", { class: "group-title", text: state.spaces.length > 1 ? `${t("accounts.title")} · ${spaceName(currentSpace())}` : t("accounts.title") }),
         h(
           "div",
@@ -1599,12 +1655,12 @@ async function viewSettings() {
           ),
         ),
         h("p", { class: "eyebrow", text: t("accounts.cardHint") }),
-      ),
-      h("div", {},
-        spacesGroup(rerender),
-        autoCategoryGroup(),
-        connectionsGroup(connections, rerender),
-        h("p", { class: "group-title", text: t("settings.sync") }),
+    );
+  }
+  if (page === "automatica") return sub("auto.title", autoCategoryGroup());
+  if (page === "conexiones") return sub("connections.title", connectionsGroup(connections, rerender));
+  if (page === "iphones") {
+    return sub("devices.title",
         h(
           "div",
           { class: "group" },
@@ -1645,7 +1701,10 @@ async function viewSettings() {
           codeBox,
         ),
         h("p", { class: "eyebrow", text: t("devices.intro") }),
-        h("p", { class: "group-title", text: t("data.title") }),
+    );
+  }
+  if (page === "datos") {
+    return sub("data.title",
         h(
           "div",
           { class: "group" },
@@ -1653,54 +1712,60 @@ async function viewSettings() {
           row(iconTile("download", "#8b5cf6", "#6366f1"), t("data.exportJson"), null, h("a", { class: "link-btn", href: "/api/export.json", download: "harina.json", "aria-label": t("data.exportJson") }, icon("download"))),
           row(iconTile("shield", "#22c58b", "#0ea5a4"), t("data.title"), t("data.privacy")),
         ),
-        h("p", { class: "group-title", text: t("settings.security") }),
-        h(
-          "div",
-          { class: "group" },
-          h("div", { class: "row" },
-            h("button", {
-              class: "btn block",
-              onclick: () =>
-                guarded(async () => {
-                  const { challengeId, options } = await api("/api/auth/register/options", { method: "POST", body: {} });
-                  const response = await createPasskey(options);
-                  await api("/api/auth/register/verify", { method: "POST", body: { challengeId, response } });
-                  if (state.session?.user) state.session.user.hasPasskey = true;
-                  toast(t("passkeys.added"));
-                }),
-            }, icon("key"), t("passkeys.add")),
-          ),
-          state.session?.user && !state.session.user.hasPasskey ? row(iconTile("key", "#ffb547", "#ff7a45"), t("passkeys.missingTitle"), t("passkeys.missing")) : null,
-          h("div", { class: "row" },
-            h("button", { class: "btn block", onclick: () => guarded(async () => (await api("/api/auth/logout", { method: "POST", body: {} }), boot())) }, icon("logout"), t("nav.logout")),
-          ),
-          h("div", { class: "row" },
-            h("button", {
-              class: "btn block danger ghost",
-              onclick: () => {
-                if (prompt(t("account.confirmDelete")) !== t("data.confirmWord")) return;
-                guarded(async () => {
-                  await api("/api/account/delete", { method: "POST", body: { confirm: true } });
-                  await boot();
-                });
-              },
-            }, icon("trash"), t("account.delete")),
-          ),
-          h("div", { class: "row" },
-            h("button", {
-              class: "btn block danger ghost",
-              onclick: () => {
-                if (prompt(t("data.confirmDeleteAll")) !== t("data.confirmWord")) return;
-                guarded(async () => {
-                  await api("/api/data/delete", { method: "POST", body: { confirm: true } });
-                  await loadAll();
-                  toast(t("data.deleted"));
-                  rerender();
-                });
-              },
-            }, icon("trash"), t("data.deleteAll")),
-          ),
+      h("p", { class: "group-title", text: t("settings.danger") }),
+      h("div", { class: "group" },
+        h("div", { class: "row" },
+          h("button", {
+            class: "btn block danger ghost",
+            onclick: () => {
+              if (prompt(t("data.confirmDeleteAll")) !== t("data.confirmWord")) return;
+              guarded(async () => {
+                await api("/api/data/delete", { method: "POST", body: { confirm: true } });
+                await loadAll();
+                toast(t("data.deleted"));
+                rerender();
+              });
+            },
+          }, icon("trash"), t("data.deleteAll")),
         ),
+      ),
+    );
+  }
+
+  // The list: the account on top, then one row per area with its current state.
+  const me = state.session?.user;
+  const link = (href, ic, from, to, title, value) =>
+    h("a", { class: "row row-btn", href }, iconTile(ic, from, to), h("div", { class: "grow" }, h("b", { text: title })), value ? h("span", { class: "value", text: value }) : null, h("span", { class: "go" }, icon("right")));
+  const { stats } = insights();
+  const auto = stats.auto + stats.corrected > 0 && stats.precision !== null
+    ? t("settings.autoValue", { pct: Math.round(stats.precision * 100) })
+    : t("settings.on");
+  render(
+    h("div", { class: "page-head" }, h("h1", { text: t("settings.title") })),
+    h("div", { class: "settings-hub" },
+      h("a", { class: "account-card", href: "#/ajustes/cuenta" },
+        h("span", { class: "avatar", text: (me?.name ?? "H").slice(0, 1).toUpperCase() }),
+        h("div", { class: "grow" },
+          h("b", { text: me?.name || t("settings.noName") }),
+          h("span", { text: me?.hasPasskey ? new URL(state.origin).host : t("passkeys.missingTitle") })),
+        h("span", { class: "go" }, icon("right"))),
+      h("p", { class: "group-title", text: t("settings.money") }),
+      h("div", { class: "group" },
+        link("#/ajustes/espacios", "users", "#22c58b", "#0ea5a4", t("spaces.title"), state.spaces.map(spaceName).join(", ")),
+        link("#/ajustes/categorias", "tag", "#ff8a4c", "#ff5f6d", t("categories.title"), String(live(state.categories).length)),
+        link("#/ajustes/tarjetas", "card", "#4c8dff", "#6a5cff", t("accounts.title"), String(live(state.accounts).length)),
+        link("#/ajustes/automatica", "spark", "#ffb547", "#ff7a45", t("auto.title"), auto),
+      ),
+      h("p", { class: "group-title", text: t("settings.devicesAndApps") }),
+      h("div", { class: "group" },
+        link("#/ajustes/iphones", "phone", "#22c58b", "#0ea5a4", t("devices.title"), String(devices.length)),
+        link("#/ajustes/conexiones", "link", "#8b5cf6", "#6366f1", t("connections.title"), String(connections.length)),
+      ),
+      h("p", { class: "group-title", text: t("data.title") }),
+      h("div", { class: "group" },
+        link("#/ajustes/datos", "download", "#8e97a8", "#5f6779", t("settings.dataRow"), null),
+        state.session?.legal?.privacy ? h("a", { class: "row row-btn", href: state.session.legal.privacy, target: "_blank", rel: "noopener" }, iconTile("shield", "#22c58b", "#0ea5a4"), h("div", { class: "grow" }, h("b", { text: t("login.privacyTitle") }))) : null,
+        state.session?.legal?.terms ? h("a", { class: "row row-btn", href: state.session.legal.terms, target: "_blank", rel: "noopener" }, iconTile("shield", "#8e97a8", "#5f6779"), h("div", { class: "grow" }, h("b", { text: t("login.termsTitle") }))) : null,
       ),
     ),
   );
@@ -1723,7 +1788,8 @@ function router() {
   if (hash === "#/movimientos") return viewMovements();
   if (hash === "#/fijos") return viewFixed();
   if (hash === "#/revisar") return viewReview();
-  if (hash === "#/ajustes") return guarded(viewSettings);
+  const settings = hash.match(/^#\/ajustes(?:\/([a-z]+))?$/);
+  if (settings) return guarded(() => viewSettings(SETTINGS_PAGES.includes(settings[1]) ? settings[1] : null));
   return viewMonth();
 }
 
