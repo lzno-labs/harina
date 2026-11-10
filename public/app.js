@@ -3,7 +3,7 @@ import { applyI18n, loadLocale, region, t } from "./i18n.js";
 import { formatMoney, minorToInput, parseAmount } from "./money.js";
 import { createPasskey, getPasskey, supported } from "./webauthn.js";
 import qrcode from "./vendor/qrcode-generator-2.0.4.js";
-import { calibrate, decide, detectRecurring, liveStats, merchantKey, projectMonth, trainCategoryModel } from "./insights.js";
+import { budgetStatus, calibrate, decide, detectRecurring, liveStats, merchantKey, potBalance, projectMonth, reminderStatus, trainCategoryModel } from "./insights.js";
 
 const CURRENCIES = ["CRC", "USD"];
 const state = {
@@ -18,7 +18,11 @@ const state = {
   back: "#/",
   devices: [],
   // Every row of every space the person is in, keyed by "space:id" (docs/design/people-and-spaces.md).
-  all: { accounts: new Map(), categories: new Map(), transactions: new Map() },
+  all: { accounts: new Map(), categories: new Map(), transactions: new Map(), reminders: new Map(), budgets: new Map(), pots: new Map() },
+  reminders: new Map(),
+  budgets: new Map(),
+  pots: new Map(),
+  prefill: null,
   spaces: [],
   space: null,
 };
@@ -40,6 +44,7 @@ function setAttrs(el, attrs) {
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "text") el.textContent = v;
     else if (k === "bg") el.style.background = v;
+    else if (k === "pct") el.style.width = `${v}%`; // through the CSSOM: the CSP forbids style attributes
     else if (k === "width") el.style.width = v;
     else el.setAttribute(k, v === true ? "" : v);
   }
@@ -78,6 +83,8 @@ const ICONS = {
   shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
   users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   move: "M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20",
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
+  piggy: "M19 7c-1.5-1.5-4-2-7-2-5 0-8 3-8 7 0 2 1 4 3 5v3h3v-2h4v2h3v-3c1-.6 2-1.5 2.5-2.5H21v-4h-1.5c-.2-1-.7-2-1.5-2.6zM16 10h.01",
 };
 
 function icon(name) {
@@ -276,6 +283,9 @@ function tile(c, cls = "tile") {
 }
 
 function txTile(tx) {
+  if (tx.kind === "saving" || tx.kind === "withdrawal") {
+    return h("span", { class: "tile", bg: "linear-gradient(135deg, #22d3ee, #0891b2)", "aria-hidden": "true" }, icon(tx.kind === "saving" ? "down" : "up"));
+  }
   if (tx.kind === "income" && !tx.category_id) {
     return h("span", { class: "tile", bg: "linear-gradient(135deg, #34e0a1, #0fb57a)", "aria-hidden": "true" }, icon("down"));
   }
@@ -297,7 +307,7 @@ function rebuild() {
     }
     state.space = (state.spaces.find((sp) => sp.id === saved) ?? state.spaces.find((sp) => sp.kind === "personal") ?? state.spaces[0])?.id ?? null;
   }
-  for (const entity of ["accounts", "categories", "transactions"]) {
+  for (const entity of Object.keys(state.all)) {
     state[entity] = new Map([...state.all[entity].values()].filter((r) => r.space_id === state.space).map((r) => [r.id, r]));
   }
   insightsCache = null;
@@ -310,7 +320,7 @@ function applyRecords(records, spaces) {
     const ids = new Set(spaces.map((sp) => sp.id));
     for (const entity of Object.keys(state.all)) for (const [k, r] of state.all[entity]) if (!ids.has(r.space_id)) state.all[entity].delete(k);
   }
-  for (const [entity, rows] of Object.entries(records)) for (const r of rows) state.all[entity].set(`${r.space_id}:${r.id}`, r);
+  for (const [entity, rows] of Object.entries(records)) for (const r of rows) state.all[entity]?.set(`${r.space_id}:${r.id}`, r);
   rebuild();
 }
 
@@ -423,7 +433,7 @@ function markNav() {
 
 function render(...content) {
   const hash = location.hash || "#/";
-  const spaceless = hash.startsWith("#/ajustes") && !/^#\/ajustes\/(categorias|tarjetas|automatica)$/.test(hash);
+  const spaceless = hash.startsWith("#/ajustes") && !/^#\/ajustes\/(categorias|tarjetas|automatica|sobres|ahorros|recordatorios)$/.test(hash);
   main.replaceChildren(h("div", { class: "fade-in" }, spaceless ? null : spaceSwitcher(), ...content));
   markNav();
   window.scrollTo(0, 0);
@@ -732,7 +742,7 @@ function viewMonth() {
         h("button", { class: "icon-btn", "aria-label": t("month.next"), onclick: () => ((state.month = shiftMonth(state.month, 1)), viewMonth()) }, icon("right")),
       ),
     ),
-    h("div", { class: "grid dash" }, startCard(), h("div", { class: "grid" }, hero, inbox, chart), h("div", { class: "grid" }, fixedCard(cur), catCard), recentCard),
+    h("div", { class: "grid dash" }, startCard(), h("div", { class: "grid" }, hero, inbox, remindersCard(), chart), h("div", { class: "grid" }, budgetsCard(cur), fixedCard(cur), potsCard(), catCard), recentCard),
   );
 }
 
@@ -846,6 +856,66 @@ function fixedCard(cur) {
   );
 }
 
+/** Envelopes of this month in the summary's currency (docs/design/budgets-reminders-savings.md). */
+function budgetsCard(cur) {
+  const list = live(state.budgets).filter((b) => b.currency === cur);
+  if (!list.length) return null;
+  const txs = liveTx();
+  return h("section", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", { text: t("budgets.title") }), h("a", { href: "#/ajustes/sobres", text: t("month.seeAll") })),
+    list.map((b) => {
+      const st = budgetStatus(b, txs, state.month);
+      return h("div", { class: `meter ${st.level}` },
+        h("div", { class: "meter-head" }, h("b", { text: b.name }),
+          h("span", { class: "num", text: st.left >= 0 ? t("budgets.left", { amount: money(st.left, cur) }) : t("budgets.over", { amount: money(-st.left, cur) }) })),
+        h("div", { class: "bar" }, h("span", { pct: Math.min(100, Math.round(st.ratio * 100)) })),
+        h("small", { class: "num", text: t("budgets.of", { spent: money(st.spent, cur), total: money(b.amount_minor, cur) }) }));
+    }));
+}
+
+function potsCard() {
+  const list = live(state.pots);
+  if (!list.length) return null;
+  const txs = liveTx();
+  return h("section", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", { text: t("pots.title") }), h("a", { href: "#/ajustes/ahorros", text: t("month.seeAll") })),
+    list.map((p) => {
+      const b = potBalance(p, txs);
+      return h("div", { class: "meter ok" },
+        h("div", { class: "meter-head" }, h("b", { text: p.name }), h("span", { class: "num", text: money(b.balance, p.currency) })),
+        b.goal ? h("div", { class: "bar" }, h("span", { pct: Math.round(b.progress * 100) })) : null,
+        b.goal ? h("small", { class: "num", text: t("pots.goal", { pct: Math.round(b.progress * 100), goal: money(b.goal, p.currency) }) }) : null);
+    }));
+}
+
+function remindersCard() {
+  const due = live(state.reminders)
+    .map((r) => ({ r, st: reminderStatus(r) }))
+    .filter(({ st }) => st.status !== "paid" && st.days <= 7)
+    .sort((a, b) => a.st.days - b.st.days);
+  if (!due.length) return null;
+  return h("section", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", { text: t("reminders.upcoming") }), h("a", { href: "#/ajustes/recordatorios", text: t("month.seeAll") })),
+    due.map(({ r, st }) => reminderRow(r, st)));
+}
+
+function reminderRow(r, st = reminderStatus(r)) {
+  const when = st.status === "paid" ? t("reminders.paid") : st.status === "late" ? t("reminders.late", { days: -st.days }) : st.status === "today" ? t("reminders.today") : st.days === 1 ? t("reminders.tomorrow") : t("reminders.inDays", { days: st.days });
+  return h("div", { class: `row reminder ${st.status}` },
+    h("span", { class: "tile sm", bg: "linear-gradient(135deg, #ffb547, #ff7a45)" }, icon("bell")),
+    h("div", { class: "grow" }, h("b", { text: r.name }), h("span", { text: [when, r.amount_minor ? money(r.amount_minor, r.currency ?? "CRC") : null].filter(Boolean).join(" · ") })),
+    st.status !== "paid" ? h("button", { class: "btn", onclick: () => payReminder(r) }, icon("check"), t("reminders.payNow")) : null);
+}
+
+/** «Ya pagué»: marks the month as paid and opens the form with the payment filled in. */
+function payReminder(r) {
+  guarded(async () => {
+    await save("reminders", { ...r, paid_month: monthOf(new Date()) });
+    state.prefill = { merchant: r.name, amount_minor: r.amount_minor ?? null, currency: r.currency ?? undefined, category_id: r.category_id ?? null, account_id: r.account_id ?? null };
+    location.hash = "#/nuevo";
+  });
+}
+
 function viewFixed() {
   const rec = insights().recurring;
   const totals = {};
@@ -879,7 +949,9 @@ function viewFixed() {
 function txRow(tx) {
   const c = state.categories.get(tx.category_id);
   const acc = state.accounts.get(tx.account_id);
-  const sub = [categoryName(c), acc && !acc.deleted ? acc.name : null, addedBy(tx)].filter(Boolean).join(" · ");
+  const pot = tx.pot_id ? state.pots.get(tx.pot_id) : null;
+  const first = tx.kind === "saving" ? t("pots.toPot", { name: pot?.name ?? "" }) : tx.kind === "withdrawal" ? t("pots.fromPot", { name: pot?.name ?? "" }) : categoryName(c);
+  const sub = [first, tx.kind === "expense" && pot ? t("pots.paidWith", { name: pot.name }) : null, acc && !acc.deleted ? acc.name : null, addedBy(tx)].filter(Boolean).join(" · ");
   const amount = tx.needs_review && tx.raw_amount && !tx.amount_minor
     ? h("div", { class: "amt" }, h("small", { text: t("review.fixAmount") }), tx.raw_amount)
     : h("div", { class: `amt num ${tx.kind === "income" ? "in" : ""}`, text: `${tx.kind === "income" ? "+" : ""}${money(tx.amount_minor, tx.currency)}` });
@@ -887,7 +959,7 @@ function txRow(tx) {
     "a",
     { class: "tx", href: `#/editar/${tx.id}` },
     txTile(tx),
-    h("div", { class: "who" }, h("b", { text: tx.merchant || tx.note || categoryName(c) }),
+    h("div", { class: "who" }, h("b", { text: tx.merchant || tx.note || (tx.kind === "saving" || tx.kind === "withdrawal" ? t(`pots.${tx.kind}`) : categoryName(c)) }),
       h("span", {}, tx.source === "apple_pay" ? icon("zap") : null, tx.category_auto === 1 ? h("i", { class: "auto", title: t("auto.mark"), "aria-label": t("auto.mark") }, icon("spark")) : null, sub)),
     amount,
   );
@@ -962,15 +1034,17 @@ function viewMovements() {
 // ---------- composer ----------
 
 function viewForm(existing) {
-  const tx = existing ?? { id: crypto.randomUUID(), kind: "expense", currency: state.currency || "CRC", source: "manual", occurred_at: new Date().toISOString() };
-  const st = { kind: tx.kind, currency: tx.currency, category: tx.category_id ?? null, account: tx.account_id ?? null };
+  const pre = existing ? null : state.prefill;
+  state.prefill = null;
+  const tx = existing ?? { id: crypto.randomUUID(), kind: "expense", currency: state.currency || "CRC", source: "manual", occurred_at: new Date().toISOString(), ...(pre ?? {}) };
+  const st = { kind: tx.kind, currency: tx.currency, category: tx.category_id ?? null, account: tx.account_id ?? null, pot: tx.pot_id ?? null };
 
   const amount = h("input", {
     class: "amount-input num",
     inputmode: "decimal",
     autocomplete: "off",
     placeholder: t("form.amountPlaceholder"),
-    value: existing && !(tx.needs_review && !tx.amount_minor) ? minorToInput(tx.amount_minor, tx.currency, region) : "",
+    value: (existing && !(tx.needs_review && !tx.amount_minor)) || (pre && tx.amount_minor) ? minorToInput(tx.amount_minor, tx.currency, region) : "",
     "aria-label": t("form.amount"),
   });
   const curBtn = h("button", {
@@ -1077,6 +1151,7 @@ function viewForm(existing) {
             category_id: st.category,
             category_auto: categoryAutoAfter(tx, st.category),
             account_id: st.account,
+            pot_id: st.kind === "expense" || st.kind === "saving" || st.kind === "withdrawal" ? st.pot : null,
             merchant: merchant.value,
             note: note.value,
             needs_review: false,
@@ -1096,6 +1171,12 @@ function viewForm(existing) {
       h("label", { class: "field" }, h("span", { text: t("form.merchant") }), merchant),
       h("div", { class: "field" }, h("span", { text: t("form.category") }), catGrid),
       accChips ? h("div", { class: "field" }, h("span", { text: t("form.account") }), accChips) : null,
+      live(state.pots).length && (st.kind === "expense" || st.pot)
+        ? h("label", { class: "field" }, h("span", { text: t("pots.payWith") }),
+            h("select", { class: "input", onchange: (e) => (st.pot = e.target.value || null) },
+              h("option", { value: "", text: t("pots.notFromSavings") }),
+              live(state.pots).map((p) => h("option", { value: p.id, selected: p.id === st.pot, text: p.name }))))
+        : null,
       h("div", { class: "two" }, h("label", { class: "field" }, h("span", { text: t("form.date") }), date), h("label", { class: "field" }, h("span", { text: t("form.note") }), note)),
       h("div", { class: "actions-row" },
         saveBtn,
@@ -1527,8 +1608,125 @@ function viewJoin(code) {
   );
 }
 
+// ---------- envelopes, savings and reminders pages (docs/design/budgets-reminders-savings.md) ----------
+
+const curSelect = (value) => h("select", { class: "input compact", "aria-label": t("form.currency") }, CURRENCIES.map((c) => h("option", { value: c, selected: c === value, text: c })));
+const delBtn = (label, onclick) => h("button", { class: "link-btn danger", "aria-label": label, title: label, onclick }, icon("trash"));
+
+function budgetsPage(rerender) {
+  const txs = liveTx();
+  const name = h("input", { class: "input", placeholder: t("budgets.name"), "aria-label": t("budgets.name"), required: true });
+  const amount = h("input", { class: "input", inputmode: "decimal", placeholder: t("budgets.amount"), "aria-label": t("budgets.amount"), required: true });
+  const cur = curSelect(state.currency || "CRC");
+  const picked = new Set();
+  const cats = h("div", { class: "chips wrap", role: "group", "aria-label": t("budgets.categories") },
+    live(state.categories).sort((a, b) => categoryName(a).localeCompare(categoryName(b), region)).map((c) =>
+      h("button", { type: "button", class: "chip", "aria-pressed": "false", onclick: (e) => {
+        if (picked.has(c.id)) picked.delete(c.id); else picked.add(c.id);
+        e.currentTarget.setAttribute("aria-pressed", String(picked.has(c.id)));
+      } }, tile(c, "tile xs"), categoryName(c))));
+  return [
+    h("div", { class: "group" },
+      live(state.budgets).length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("budgets.empty") })),
+      live(state.budgets).map((b) => {
+        const st = budgetStatus(b, txs, monthOf(new Date()));
+        const names = JSON.parse(b.category_ids).map((id) => categoryName(state.categories.get(id))).join(", ");
+        return h("div", { class: `row meter ${st.level}` },
+          h("div", { class: "grow" },
+            h("div", { class: "meter-head" }, h("b", { text: b.name }), h("span", { class: "num", text: t("budgets.of", { spent: money(st.spent, b.currency), total: money(b.amount_minor, b.currency) }) })),
+            h("div", { class: "bar" }, h("span", { pct: Math.min(100, Math.round(st.ratio * 100)) })),
+            h("small", { text: names })),
+          delBtn(t("form.delete"), () => confirm(t("budgets.confirmDelete", { name: b.name })) && guarded(async () => (await save("budgets", { ...b, deleted: true }), rerender()))));
+      })),
+    h("p", { class: "group-title", text: t("budgets.new") }),
+    h("form", { class: "group form-group", onsubmit: (e) => {
+      e.preventDefault();
+      const minor = parseAmount(amount.value, cur.value);
+      if (!minor || !picked.size) return toast(t("budgets.invalid"));
+      guarded(async () => (await save("budgets", { id: crypto.randomUUID(), name: name.value.trim(), amount_minor: minor, currency: cur.value, category_ids: [...picked] }), rerender()));
+    } },
+      h("div", { class: "row" }, name),
+      h("div", { class: "row" }, amount, cur),
+      h("div", { class: "row col" }, h("span", { class: "muted", text: t("budgets.categories") }), cats),
+      h("div", { class: "row" }, h("button", { class: "btn primary" }, icon("plus"), t("budgets.create")))),
+    h("p", { class: "eyebrow", text: t("budgets.hint") }),
+  ];
+}
+
+function potsPage(rerender) {
+  const txs = liveTx();
+  const name = h("input", { class: "input", placeholder: t("pots.name"), "aria-label": t("pots.name"), required: true });
+  const goal = h("input", { class: "input", inputmode: "decimal", placeholder: t("pots.goalOptional"), "aria-label": t("pots.goalOptional") });
+  const goalDate = h("input", { class: "input", type: "date", "aria-label": t("pots.goalDate") });
+  const cur = curSelect(state.currency || "CRC");
+  const move = (p, kind) => {
+    const raw = prompt(t(kind === "saving" ? "pots.depositPrompt" : "pots.withdrawPrompt", { name: p.name }));
+    if (!raw) return;
+    const minor = parseAmount(raw, p.currency);
+    if (!minor) return toast(t("form.invalidAmount"));
+    guarded(async () => {
+      await save("transactions", { id: crypto.randomUUID(), kind, amount_minor: minor, currency: p.currency, pot_id: p.id, merchant: p.name, source: "manual", occurred_at: new Date().toISOString() });
+      rerender();
+    });
+  };
+  return [
+    h("div", { class: "group" },
+      live(state.pots).length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("pots.empty") })),
+      live(state.pots).map((p) => {
+        const b = potBalance(p, txs);
+        return h("div", { class: "row meter ok" },
+          h("div", { class: "grow" },
+            h("div", { class: "meter-head" }, h("b", { text: p.name }), h("span", { class: "num", text: money(b.balance, p.currency) })),
+            b.goal ? h("div", { class: "bar" }, h("span", { pct: Math.round(b.progress * 100) })) : null,
+            b.goal ? h("small", { class: "num", text: t("pots.goal", { pct: Math.round(b.progress * 100), goal: money(b.goal, p.currency) }) + (p.goal_date ? ` · ${p.goal_date}` : "") }) : null,
+            h("div", { class: "pot-actions" },
+              h("button", { class: "btn", onclick: () => move(p, "saving") }, icon("down"), t("pots.deposit")),
+              h("button", { class: "btn", onclick: () => move(p, "withdrawal") }, icon("up"), t("pots.withdraw")))),
+          delBtn(t("form.delete"), () => confirm(t("pots.confirmDelete", { name: p.name })) && guarded(async () => (await save("pots", { ...p, deleted: true }), rerender()))));
+      })),
+    h("p", { class: "group-title", text: t("pots.new") }),
+    h("form", { class: "group form-group", onsubmit: (e) => {
+      e.preventDefault();
+      const goalMinor = goal.value.trim() ? parseAmount(goal.value, cur.value) : null;
+      if (goal.value.trim() && !goalMinor) return toast(t("form.invalidAmount"));
+      guarded(async () => (await save("pots", { id: crypto.randomUUID(), name: name.value.trim(), currency: cur.value, goal_minor: goalMinor, goal_date: goalDate.value || null }), rerender()));
+    } },
+      h("div", { class: "row" }, name, cur),
+      h("div", { class: "row" }, goal, goalDate),
+      h("div", { class: "row" }, h("button", { class: "btn primary" }, icon("plus"), t("pots.create")))),
+    h("p", { class: "eyebrow", text: t("pots.hint") }),
+  ];
+}
+
+function remindersPage(rerender) {
+  const name = h("input", { class: "input", placeholder: t("reminders.name"), "aria-label": t("reminders.name"), required: true });
+  const day = h("input", { class: "input", type: "number", min: 1, max: 31, placeholder: t("reminders.day"), "aria-label": t("reminders.day"), required: true });
+  const amount = h("input", { class: "input", inputmode: "decimal", placeholder: t("reminders.amountOptional"), "aria-label": t("reminders.amountOptional") });
+  const cur = curSelect(state.currency || "CRC");
+  const list = live(state.reminders).map((r) => ({ r, st: reminderStatus(r) })).sort((a, b) => a.st.days - b.st.days);
+  return [
+    h("div", { class: "group" },
+      list.length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("reminders.empty") })),
+      list.map(({ r, st }) => h("div", { class: "row-wrap" }, reminderRow(r, st),
+        delBtn(t("form.delete"), () => confirm(t("reminders.confirmDelete", { name: r.name })) && guarded(async () => (await save("reminders", { ...r, deleted: true }), rerender())))))),
+    h("p", { class: "group-title", text: t("reminders.new") }),
+    h("form", { class: "group form-group", onsubmit: (e) => {
+      e.preventDefault();
+      const d = Number(day.value);
+      if (!Number.isInteger(d) || d < 1 || d > 31) return toast(t("reminders.invalidDay"));
+      const minor = amount.value.trim() ? parseAmount(amount.value, cur.value) : null;
+      if (amount.value.trim() && !minor) return toast(t("form.invalidAmount"));
+      guarded(async () => (await save("reminders", { id: crypto.randomUUID(), name: name.value.trim(), day_of_month: d, amount_minor: minor, currency: minor ? cur.value : null }), rerender()));
+    } },
+      h("div", { class: "row" }, name),
+      h("div", { class: "row" }, day, amount, cur),
+      h("div", { class: "row" }, h("button", { class: "btn primary" }, icon("plus"), t("reminders.create")))),
+    h("p", { class: "eyebrow", text: t("reminders.hint") }),
+  ];
+}
+
 /** Settings as a short list; each area opens on its own page (#/ajustes/<area>). */
-const SETTINGS_PAGES = ["cuenta", "espacios", "categorias", "tarjetas", "automatica", "iphones", "conexiones", "datos"];
+const SETTINGS_PAGES = ["cuenta", "espacios", "categorias", "tarjetas", "automatica", "sobres", "ahorros", "recordatorios", "iphones", "conexiones", "datos"];
 
 async function viewSettings(page = null) {
   const [{ devices }, { connections }] = await Promise.all([api("/api/devices"), api("/api/connections")]);
@@ -1658,6 +1856,9 @@ async function viewSettings(page = null) {
     );
   }
   if (page === "automatica") return sub("auto.title", autoCategoryGroup());
+  if (page === "sobres") return sub("budgets.title", budgetsPage(rerender));
+  if (page === "ahorros") return sub("pots.title", potsPage(rerender));
+  if (page === "recordatorios") return sub("reminders.title", remindersPage(rerender));
   if (page === "conexiones") return sub("connections.title", connectionsGroup(connections, rerender));
   if (page === "iphones") {
     return sub("devices.title",
@@ -1755,6 +1956,9 @@ async function viewSettings(page = null) {
         link("#/ajustes/categorias", "tag", "#ff8a4c", "#ff5f6d", t("categories.title"), String(live(state.categories).length)),
         link("#/ajustes/tarjetas", "card", "#4c8dff", "#6a5cff", t("accounts.title"), String(live(state.accounts).length)),
         link("#/ajustes/automatica", "spark", "#ffb547", "#ff7a45", t("auto.title"), auto),
+        link("#/ajustes/sobres", "inbox", "#a77bff", "#d061ff", t("budgets.title"), String(live(state.budgets).length)),
+        link("#/ajustes/ahorros", "piggy", "#22d3ee", "#0891b2", t("pots.title"), String(live(state.pots).length)),
+        link("#/ajustes/recordatorios", "bell", "#ffb547", "#ff7a45", t("reminders.title"), String(live(state.reminders).length)),
       ),
       h("p", { class: "group-title", text: t("settings.devicesAndApps") }),
       h("div", { class: "group" },
