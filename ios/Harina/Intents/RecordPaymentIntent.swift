@@ -23,13 +23,15 @@ struct RecordPaymentIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let context = Store.container.mainContext
-        let accountId = Self.account(forCard: card, in: context)
-        var dto = PaymentCapture.movement(merchant: merchant, amountText: amount, card: card, accountId: accountId,
+        // The card's space decides where the payment lands (docs/design/people-and-spaces.md).
+        let account = Self.account(forCard: card, in: context)
+        var dto = PaymentCapture.movement(merchant: merchant, amountText: amount, card: card, accountId: account?.id,
                                           defaultCurrency: AppSettings.defaultCurrency)
+        dto.space_id = Spaces.wire(account?.space ?? "")
         // Decision model, well-known merchants and Apple Intelligence (docs/design/apple-intelligence.md):
         // only acts when it is sure.
         var autoCategory: CategoryItem?
-        let brain = Smart.brain(context)
+        let brain = Smart.brain(context, space: account?.space ?? "")
         let decision = AppSettings.autoCategory && dto.needs_review == 0
             ? await Smart.categorize(dto, brain: brain)
             : brain.model.decide(brain.calibration, DecisionState(dto))
@@ -65,17 +67,18 @@ struct RecordPaymentIntent: AppIntent {
         return .result(dialog: IntentDialog(stringLiteral: shown))
     }
 
-    /// The account whose card matches what Wallet reports; a new account named after the card otherwise.
+    /// The account whose card matches what Wallet reports, in any space; a new personal account named
+    /// after the card otherwise.
     @MainActor
-    static func account(forCard card: String?, in context: ModelContext) -> String? {
+    static func account(forCard card: String?, in context: ModelContext) -> (id: String, space: String)? {
         guard let card = card?.trimmingCharacters(in: .whitespacesAndNewlines), !card.isEmpty else { return nil }
         let accounts = (try? context.fetch(FetchDescriptor<AccountItem>(predicate: #Predicate { $0.deleted == false }))) ?? []
         let key = MerchantKey.normalize(card)
-        if let match = accounts.first(where: { MerchantKey.normalize($0.card) == key }) { return match.id }
+        if let match = accounts.first(where: { MerchantKey.normalize($0.card) == key }) { return (match.id, match.space) }
         let dto = AccountDTO(id: UUID().uuidString, name: String(card.prefix(100)), card: String(card.prefix(100)),
                              updated_at: SyncRules.now())
         context.insert(AccountItem(dto, dirty: true))
-        return dto.id
+        return (dto.id, "")
     }
 }
 

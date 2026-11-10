@@ -9,9 +9,15 @@ struct MovementForm: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sync: SyncService
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
-    @Query(filter: #Predicate<AccountItem> { $0.deleted == false }) private var accounts: [AccountItem]
-    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
+    @Query(filter: #Predicate<AccountItem> { $0.deleted == false }) private var allAccounts: [AccountItem]
+    @AppStorage("space") private var spaceA = ""
+    private var accounts: [AccountItem] { allAccounts.inSpace(Spaces.valid(spaceA)) }
+    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
 
     @State private var kind = "expense"
     @State private var amount = ""
@@ -22,6 +28,7 @@ struct MovementForm: View {
     @State private var merchant = ""
     @State private var note = ""
     @State private var invalid = false
+    @State private var moveFailed = false
     @State private var saved = false
     @State private var confirmDelete = false
     @FocusState private var amountFocused: Bool
@@ -159,6 +166,24 @@ struct MovementForm: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if movement != nil {
+                if let m = movement, sync.spaces.count > 1 {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            ForEach(sync.spaces.filter { Spaces.local($0.id) != m.space }) { sp in
+                                Button(Spaces.name(Spaces.local(sp.id))) {
+                                    Task {
+                                        do {
+                                            try await sync.move(m, to: Spaces.local(sp.id))
+                                            dismiss()
+                                        } catch {
+                                            moveFailed = true
+                                        }
+                                    }
+                                }
+                            }
+                        } label: { Label("spaces.moveTo", systemImage: "arrow.left.arrow.right") }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) { confirmDelete = true } label: { Label("form.delete", systemImage: "trash") }
                         .tint(Theme.spend)
@@ -166,6 +191,7 @@ struct MovementForm: View {
             }
         }
         .alert("form.invalidAmount", isPresented: $invalid) {}
+        .alert("spaces.moveFailed", isPresented: $moveFailed) {}
         .confirmationDialog("form.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("form.delete", role: .destructive) {
                 movement?.deleted = true
@@ -204,7 +230,8 @@ struct MovementForm: View {
         }
         let m = movement ?? { () -> Movement in
             let dto = TransactionDTO(id: UUID().uuidString, kind: kind, amount_minor: 0, currency: currency, source: "manual",
-                                     occurred_at: ISODate.string(date), updated_at: SyncRules.now())
+                                     occurred_at: ISODate.string(date), updated_at: SyncRules.now(),
+                                     space_id: Spaces.wire(Spaces.valid(spaceM)))
             let new = Movement(dto, dirty: true)
             context.insert(new)
             return new

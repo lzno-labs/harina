@@ -409,7 +409,9 @@ struct FirstCaptureView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sync: SyncService
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
 
     var body: some View {
         ScrollView {

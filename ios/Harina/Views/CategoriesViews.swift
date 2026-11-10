@@ -9,7 +9,7 @@ enum CategoryStore {
     /// First launch without a server: create the seven default suggestions with the server's ids
     /// and clock 0, not dirty, so a server copy (seeded or renamed on the web) wins when linking.
     static func ensureDefaults(_ context: ModelContext) {
-        let count = (try? context.fetchCount(FetchDescriptor<CategoryItem>())) ?? 0
+        let count = (try? context.fetchCount(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.space == "" }))) ?? 0
         guard count == 0 else { return }
         for s in CategoryCatalog.all where s.on {
             context.insert(CategoryItem(CategoryDTO(id: s.id, key: s.key, updated_at: 0), dirty: false))
@@ -17,18 +17,20 @@ enum CategoryStore {
         try? context.save()
     }
 
-    static func item(_ id: String, _ context: ModelContext) -> CategoryItem? {
-        try? context.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.id == id })).first
+    static func item(_ id: String, space: String = Spaces.current, _ context: ModelContext) -> CategoryItem? {
+        let uid = Spaces.uid(space, id)
+        return try? context.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.uid == uid })).first
     }
 
-    /// Turns a suggestion on or off. Off is a tombstone, so it syncs everywhere.
+    /// Turns a suggestion on or off in the current space. Off is a tombstone, so it syncs everywhere.
     static func toggle(_ s: SuggestedCategory, _ context: ModelContext) {
-        if let c = item(s.id, context) {
+        let space = Spaces.current
+        if let c = item(s.id, space: space, context) {
             c.deleted.toggle()
             if !c.deleted { c.key = s.key }
             c.touch()
         } else {
-            context.insert(CategoryItem(CategoryDTO(id: s.id, key: s.key, updated_at: SyncRules.now()), dirty: true))
+            context.insert(CategoryItem(CategoryDTO(id: s.id, key: s.key, updated_at: SyncRules.now(), space_id: Spaces.wire(space)), dirty: true))
         }
         try? context.save()
     }
@@ -44,7 +46,9 @@ enum CategoryStore {
 struct CategoriesGrid: View {
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var sync: SyncService
-    @Query private var all: [CategoryItem]
+    @Query private var everything: [CategoryItem]
+    @AppStorage("space") private var space = ""
+    private var all: [CategoryItem] { everything.inSpace(Spaces.valid(space)) }
     @State private var editing: CategoryItem?
     @State private var creating = false
 
@@ -228,7 +232,7 @@ struct CategoryEditor: View {
             c.touch()
         } else {
             context.insert(CategoryItem(CategoryDTO(id: UUID().uuidString, name: value, icon: icon, color: color,
-                                                    updated_at: SyncRules.now()), dirty: true))
+                                                    updated_at: SyncRules.now(), space_id: Spaces.wire(Spaces.current)), dirty: true))
         }
         try? context.save()
         Task { await sync.sync() }

@@ -84,10 +84,11 @@ enum Smart {
     /// Hosted answers at or above this confidence assign on their own; below, they are a suggestion.
     static let hostedActAt = 0.9
 
+    /// The decision model of one space: each space learns from its own movements and categories.
     @MainActor
-    static func brain(_ context: ModelContext) -> Brain {
-        let movements = (try? context.fetch(FetchDescriptor<Movement>(predicate: #Predicate { $0.deleted == false }))) ?? []
-        let categories = (try? context.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.deleted == false }))) ?? []
+    static func brain(_ context: ModelContext, space: String) -> Brain {
+        let movements = (try? context.fetch(FetchDescriptor<Movement>(predicate: #Predicate { $0.deleted == false && $0.space == space }))) ?? []
+        let categories = (try? context.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.deleted == false && $0.space == space }))) ?? []
         return brain(movements: movements, categories: categories)
     }
 }
@@ -168,8 +169,12 @@ struct FixedCard: View {
 }
 
 struct FixedView: View {
-    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
 
     var body: some View {
         let brain = Smart.brain(movements: movements, categories: categories)
@@ -215,8 +220,12 @@ struct FixedView: View {
 // MARK: - Automatic category settings
 
 struct AutoCategorySection: View {
-    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
     @AppStorage("autoCategory") private var enabled = true
     @AppStorage("appleIntelligence") private var useAI = true
     @AppStorage("hostedDecider") private var hosted = false
