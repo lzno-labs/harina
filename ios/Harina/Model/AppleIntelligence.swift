@@ -5,8 +5,8 @@ import HarinaKit
 import FoundationModels
 #endif
 
-/// Apple Intelligence on the iPhone (Foundation Models framework), only for merchants the person's
-/// history and the well-known merchant list do not cover (docs/design/apple-intelligence.md).
+/// Apple Intelligence on the iPhone (Foundation Models framework), only for payments the person's
+/// history does not cover (docs/design/apple-intelligence.md).
 /// Runs on the device: nothing leaves the phone. Without Apple Intelligence it simply returns nil.
 enum AppleIntelligence {
     enum Status { case available, notEligible, turnedOff, notReady, unsupportedOS }
