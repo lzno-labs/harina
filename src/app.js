@@ -1,5 +1,6 @@
 // The HTTP app, written against the Fetch API so it runs unchanged on Node and on Workers.
 import * as auth from "./auth.js";
+import { categorize, DEFAULT_CAP_TOKENS, DeciderError, setConsent, status as deciderStatus } from "./categorize.js";
 import { deleteAllData, exportCsv, exportJson } from "./export.js";
 import { LOCALES } from "./locales.js";
 import { pull, push, ValidationError } from "./sync.js";
@@ -119,10 +120,12 @@ async function readJson(req) {
 }
 
 /**
- * @param {{ db: import("./storage/db.js").Db, config: object, assets?: (req: Request) => Promise<Response> }} deps
+ * @param {{ db: import("./storage/db.js").Db, config: object, assets?: (req: Request) => Promise<Response>, decider?: object | null }} deps
  */
-export function createApp({ db, config, assets }) {
+export function createApp({ db, config, assets, decider = null }) {
   const cfg = normalizeConfig(config);
+  const capRaw = config?.aiCapTokens === "" || config?.aiCapTokens === undefined || config?.aiCapTokens === null ? NaN : Number(config.aiCapTokens);
+  const capTokens = Number.isSafeInteger(capRaw) && capRaw >= 0 ? capRaw : DEFAULT_CAP_TOKENS;
 
   async function principal(req) {
     const bearer = (req.headers.get("Authorization") ?? "").match(/^Bearer (.+)$/)?.[1];
@@ -258,6 +261,28 @@ export function createApp({ db, config, assets }) {
         needAny();
         const body = await readJson(req);
         return json(await push(db, body.changes));
+      }
+
+      // ----- Hosted category decider (docs/design/hosted-decision-model.md) -----
+      case "GET /api/decider":
+        needAny();
+        return json(await deciderStatus(db, decider, capTokens));
+      case "POST /api/decider/consent": {
+        needAny();
+        const body = await readJson(req);
+        if (typeof body.on !== "boolean") return error("invalid_consent", 400);
+        await setConsent(db, body.on);
+        return json(await deciderStatus(db, decider, capTokens));
+      }
+      case "POST /api/categorize": {
+        needAny();
+        const body = await readJson(req);
+        try {
+          return json(await categorize(db, decider, capTokens, body));
+        } catch (e) {
+          if (e instanceof DeciderError) return error(e.code, e.status);
+          throw e;
+        }
       }
 
       case "GET /api/export.json":

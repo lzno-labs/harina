@@ -5,10 +5,10 @@ import { openSqlite } from "../src/storage/sqlite.js";
 
 export const ORIGIN = "https://harina.test";
 
-export async function setup(extra = {}) {
+export async function setup(extra = {}, { decider = null } = {}) {
   const db = openSqlite(":memory:");
   await migrate(db);
-  const app = createApp({ db, config: { origin: ORIGIN, setupToken: "secret-setup", coreSha: "abc123", ...extra } });
+  const app = createApp({ db, config: { origin: ORIGIN, setupToken: "secret-setup", coreSha: "abc123", ...extra }, decider });
   const call = (path, { method = "GET", body, headers = {} } = {}) =>
     app(
       new Request(ORIGIN + path, {
