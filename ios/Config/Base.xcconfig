@@ -10,4 +10,7 @@ HARINA_FACE_ID_TEXT = harina usa Face ID para que solo tú veas tus finanzas.
 // iCloud link of a ready-made capture shortcut built for this bundle id (see AutomationGuide.swift).
 // Empty by default: the app shows the manual steps. Write "https:/$()/" because // starts a comment.
 HARINA_SHORTCUT_URL =
+// Server offered by default when linking (for example a hosted harina). Empty by default: people
+// type the address of their own server. Write "https:/$()/" because // starts a comment.
+HARINA_DEFAULT_SERVER =
 #include? "Signing.xcconfig"
