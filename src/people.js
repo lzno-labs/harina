@@ -89,7 +89,7 @@ export async function deleteUser(db, userId) {
   const personal = list.filter((s) => s.kind === "personal").map((s) => s.id);
   const stmts = [];
   for (const space of personal) {
-    for (const t of ["transactions", "categories", "accounts", "members"]) {
+    for (const t of ["transactions", "categories", "accounts", "reminders", "budgets", "pots", "members"]) {
       stmts.push({ sql: `DELETE FROM ${t} WHERE space_id = ?`, params: [space] });
     }
     stmts.push({ sql: "DELETE FROM spaces WHERE id = ?", params: [space] });

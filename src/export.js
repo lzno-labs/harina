@@ -17,7 +17,9 @@ export async function exportJson(db, spaces) {
   if (!spaces?.length) throw new Error("no spaces");
   const w = `space_id IN (${spaces.map(() => "?").join(",")})`;
   const live = (t) => db.all(`SELECT * FROM ${t} WHERE deleted = 0 AND ${w} ORDER BY ${t === "transactions" ? "occurred_at" : "id"}`, spaces);
-  const [accounts, categories, transactions] = await Promise.all([live("accounts"), live("categories"), live("transactions")]);
+  const [accounts, categories, transactions, reminders, budgets, pots] = await Promise.all(
+    ["accounts", "categories", "transactions", "reminders", "budgets", "pots"].map(live),
+  );
   const strip = ({ seq: _s, deleted: _d, ...r }) => r;
   return {
     format: "harina-export",
@@ -27,6 +29,9 @@ export async function exportJson(db, spaces) {
     accounts: accounts.map(strip),
     categories: categories.map(strip),
     transactions: transactions.map((t) => ({ ...strip(t), amount: formatMinor(t.amount_minor, t.currency) })),
+    reminders: reminders.map(strip),
+    budgets: budgets.map((b) => ({ ...strip(b), category_ids: JSON.parse(b.category_ids) })),
+    pots: pots.map(strip),
   };
 }
 
@@ -70,16 +75,18 @@ export async function exportCsv(db, spaces, lang = "es") {
 /** Deletes every movement, category and account of a space (as tombstones, so iPhones sync the deletion). */
 export async function deleteAllData(db, space) {
   const stmts = [];
-  for (const t of ["transactions", "categories", "accounts"]) {
+  for (const t of ["transactions", "categories", "accounts", "reminders", "budgets", "pots"]) {
     const ids = (await db.all(`SELECT id FROM ${t} WHERE deleted = 0 AND space_id = ?`, [space])).map((r) => r.id);
     for (const id of ids) {
       stmts.push({ sql: "UPDATE meta SET value = value + 1 WHERE key = 'seq'", params: [] });
-      const blank =
-        t === "transactions"
-          ? ", amount_minor = 0, category_id = NULL, account_id = NULL, merchant = NULL, note = NULL, card = NULL, raw_amount = NULL"
-          : t === "accounts"
-            ? ", name = '', card = NULL"
-            : ", key = NULL, name = NULL";
+      const blank = {
+        transactions: ", amount_minor = 0, category_id = NULL, account_id = NULL, pot_id = NULL, merchant = NULL, note = NULL, card = NULL, raw_amount = NULL",
+        accounts: ", name = '', card = NULL",
+        categories: ", key = NULL, name = NULL",
+        reminders: ", name = '', amount_minor = NULL, note = NULL",
+        budgets: ", name = '', category_ids = '[]'",
+        pots: ", name = '', goal_minor = NULL",
+      }[t];
       stmts.push({
         sql: `UPDATE ${t} SET deleted = 1, updated_at = ?, seq = (SELECT value FROM meta WHERE key = 'seq')${blank} WHERE space_id = ? AND id = ?`,
         params: [Date.now(), space, id],

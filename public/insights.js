@@ -266,3 +266,52 @@ export function projectMonth(txs, recurring, currency, now = new Date()) {
   const projected = Math.round(spent + fixedRemaining + dailyVariable * (daysInMonth - day));
   return { spent, fixedRemaining, dailyVariable: Math.round(dailyVariable), projected };
 }
+
+// ---------- envelopes, savings pots and reminders (docs/design/budgets-reminders-savings.md) ----------
+
+const pad2 = (n) => String(n).padStart(2, "0");
+/** Local "YYYY-MM" of an ISO date or a Date. */
+export function localMonth(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}`;
+}
+
+/** Spending of a month in an envelope's categories and currency; level ok, warn (80 %) or over. */
+export function budgetStatus(budget, txs, month) {
+  const ids = new Set(typeof budget.category_ids === "string" ? JSON.parse(budget.category_ids) : budget.category_ids);
+  let spent = 0;
+  for (const t of txs) {
+    if (t.deleted || t.kind !== "expense" || t.currency !== budget.currency || !ids.has(t.category_id)) continue;
+    if (localMonth(t.occurred_at) === month) spent += t.amount_minor;
+  }
+  const ratio = budget.amount_minor > 0 ? spent / budget.amount_minor : 0;
+  return { spent, left: budget.amount_minor - spent, ratio, level: ratio >= 1 ? "over" : ratio >= 0.8 ? "warn" : "ok" };
+}
+
+/** A pot's balance: savings minus withdrawals minus expenses paid from it. */
+export function potBalance(pot, txs) {
+  let saved = 0;
+  let out = 0;
+  for (const t of txs) {
+    if (t.deleted || t.pot_id !== pot.id) continue;
+    if (t.kind === "saving") saved += t.amount_minor;
+    else if (t.kind === "withdrawal" || t.kind === "expense") out += t.amount_minor;
+  }
+  const balance = saved - out;
+  const goal = pot.goal_minor ?? null;
+  return { balance, saved, goal, progress: goal ? Math.max(0, Math.min(1, balance / goal)) : null };
+}
+
+/**
+ * Next due date of a monthly reminder (day 31 is the month's last day) and its status: paid this
+ * month (then the due date is next month's), late, today, soon (3 days) or upcoming.
+ */
+export function reminderStatus(reminder, now = new Date()) {
+  const dueIn = (y, m) => new Date(y, m, Math.min(reminder.day_of_month, new Date(y, m + 1, 0).getDate()));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const paid = reminder.paid_month === localMonth(today);
+  const due = paid ? dueIn(today.getFullYear(), today.getMonth() + 1) : dueIn(today.getFullYear(), today.getMonth());
+  const days = Math.round((due - today) / 86400000);
+  const status = paid ? "paid" : days < 0 ? "late" : days === 0 ? "today" : days <= 3 ? "soon" : "upcoming";
+  return { due: `${due.getFullYear()}-${pad2(due.getMonth() + 1)}-${pad2(due.getDate())}`, days, status };
+}
