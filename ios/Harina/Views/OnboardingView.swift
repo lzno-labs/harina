@@ -17,6 +17,12 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var openedShortcuts = false
     @State private var showLinkForm = false
+    @State private var storage: Storage?
+    @State private var signingUp = false
+    @State private var signupError: LocalizedStringKey?
+
+    /// Where the person keeps their data: only on this iPhone, or also on a server (docs/design/onboarding.md).
+    private enum Storage { case local, server }
 
     private let steps = 6
 
@@ -188,8 +194,8 @@ struct OnboardingView: View {
 
     private var linkStep: some View {
         page {
-            VStack(alignment: .leading, spacing: 18) {
-                title("onboarding.link.title", "onboarding.link.text")
+            VStack(alignment: .leading, spacing: 16) {
+                title("onboarding.storage.title", "onboarding.storage.text")
                 if sync.isLinked, let url = AppSettings.serverURL {
                     Label {
                         Text("onboarding.link.done \(url.host() ?? url.absoluteString)")
@@ -197,20 +203,109 @@ struct OnboardingView: View {
                     .font(.headline)
                     .card()
                 } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("onboarding.link.qr1", systemImage: "desktopcomputer")
-                        Label("onboarding.link.qr2", systemImage: "qrcode.viewfinder")
-                        Label("onboarding.link.qr3", systemImage: "checkmark.seal")
+                    storageOption(.local, systemImage: "iphone", title: "onboarding.storage.local",
+                                  pros: ["onboarding.storage.local.pro1", "onboarding.storage.local.pro2"],
+                                  cons: ["onboarding.storage.local.con1", "onboarding.storage.local.con2"]
+                                      + (AppleIntelligence.status == .available ? [] : ["onboarding.storage.local.con3"]))
+                    storageOption(.server, systemImage: "externaldrive.connected.to.line.below", title: serverTitle,
+                                  pros: ["onboarding.storage.server.pro1", "onboarding.storage.server.pro2", "onboarding.storage.server.pro3"]
+                                      + (AppleIntelligence.status == .available ? [] : ["onboarding.storage.server.pro4"]),
+                                  cons: ["onboarding.storage.server.con1", "onboarding.storage.server.con2"])
+                    if storage == .server {
+                        if let signupError { Text(signupError).font(.footnote).foregroundStyle(.red) }
+                        Text("onboarding.link.haveAccount").font(.subheadline.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 12) {
+                            if let host = LinkView.defaultServer?.host() {
+                                Label("onboarding.link.qr1.host \(host)", systemImage: "desktopcomputer")
+                            } else {
+                                Label("onboarding.link.qr1", systemImage: "desktopcomputer")
+                            }
+                            Label("onboarding.link.qr2", systemImage: "qrcode.viewfinder")
+                            Label("onboarding.link.qr3", systemImage: "checkmark.seal")
+                        }
+                        .font(.subheadline)
+                        .card()
+                        Button("onboarding.link.manual") { showLinkForm = true }.font(.subheadline.weight(.semibold))
                     }
-                    .font(.subheadline)
-                    .card()
-                    Button("onboarding.link.manual") { showLinkForm = true }.font(.subheadline.weight(.semibold))
+                    Text("onboarding.storage.later").font(.footnote).foregroundStyle(.secondary)
                 }
             }
         } actions: {
-            Button(LocalizedStringKey(sync.isLinked ? "onboarding.finish" : "onboarding.link.later"), action: done)
-                .buttonStyle(BrandButtonStyle())
+            if sync.isLinked {
+                Button("onboarding.finish", action: done).buttonStyle(BrandButtonStyle())
+            } else {
+                switch storage {
+                case .local: Button("onboarding.storage.startLocal", action: done).buttonStyle(BrandButtonStyle())
+                case .server:
+                    if let host = LinkView.defaultServer?.host() {
+                        Button { Task { await signUp() } } label: {
+                            if signingUp { ProgressView().tint(.white) } else { Text("onboarding.signup.button \(host)") }
+                        }
+                        .buttonStyle(BrandButtonStyle())
+                        .disabled(signingUp)
+                        Button("onboarding.link.later", action: done).font(.subheadline.weight(.semibold))
+                    } else {
+                        Button("onboarding.link.later", action: done).buttonStyle(BrandButtonStyle())
+                    }
+                case nil: Button("onboarding.storage.choose") {}.buttonStyle(BrandButtonStyle()).disabled(true).opacity(0.5)
+                }
+            }
         }
+    }
+
+    /// Creates the account on the default server with this iPhone (docs/design/people-and-spaces.md).
+    private func signUp() async {
+        guard let server = LinkView.defaultServer else { return }
+        signingUp = true
+        signupError = nil
+        defer { signingUp = false }
+        do {
+            try await sync.signUp(server: server, deviceName: UIDevice.current.name)
+            await sync.sync()
+        } catch SyncError.signupClosed {
+            signupError = "signup.closed"
+        } catch {
+            signupError = "link.failed"
+        }
+    }
+
+    private var serverTitle: LocalizedStringKey {
+        if let host = LinkView.defaultServer?.host() { return "onboarding.storage.server.host \(host)" }
+        return "onboarding.storage.server"
+    }
+
+    private func storageOption(_ option: Storage, systemImage symbol: String, title: LocalizedStringKey,
+                               pros: [LocalizedStringKey], cons: [LocalizedStringKey]) -> some View {
+        let selected = storage == option
+        return Button { withAnimation(.snappy) { storage = option } } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: symbol).font(.title3.weight(.semibold)).frame(width: 28)
+                    Text(title).font(.headline)
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(selected ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Color.secondary))
+                }
+                ForEach(Array(pros.enumerated()), id: \.offset) { _, text in
+                    Label { Text(text) } icon: { Image(systemName: "checkmark").foregroundStyle(Theme.earn) }
+                }
+                ForEach(Array(cons.enumerated()), id: \.offset) { _, text in
+                    Label { Text(text) } icon: { Image(systemName: "minus").foregroundStyle(Theme.warn) }
+                }
+            }
+            .font(.subheadline)
+            .multilineTextAlignment(.leading)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                    .strokeBorder(selected ? AnyShapeStyle(Theme.brand) : AnyShapeStyle(Color.clear), lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func done() {

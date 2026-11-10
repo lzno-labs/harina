@@ -43,6 +43,9 @@ Option 1.
 - **Sync** (ADR-0002 unchanged otherwise): a pull returns rows of the spaces the user belongs to,
   plus the spaces and memberships; a push is refused for spaces the user is not in. When a user
   joins a space, their devices pull that space from the start.
+- **Recovery:** passkeys sync through the platform keychain; the iPhone can always show a one-time
+  web code. If a person loses both, the operator runs `npm run login-code [user id]` (self-hosted)
+  and the person adds a new passkey after signing in with it.
 - **Migration:** Harina is in testing, and the owner authorized discarding existing data
   (2026-11-10). The new schema is created from scratch: the hosted database is reset, the owner
   registers a new passkey and relinks the iPhones (rows still on a phone sync up again). Self-hosted

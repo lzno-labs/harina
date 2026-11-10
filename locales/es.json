@@ -21,19 +21,24 @@
   },
   "setup": {
     "title": "Configura Harina",
-    "intro": "Es la primera vez que se abre esta instalación. Escribe el código de configuración y crea tu llave de acceso (passkey). Solo tú podrás entrar.",
+    "intro": "Es la primera vez que se abre esta instalación. Escribe el código de configuración y crea tu llave de acceso (passkey) para crear la primera cuenta.",
     "token": "Código de configuración",
     "create": "Crear llave de acceso",
     "features": {
       "applePay": "Tus pagos con Apple Pay se anotan solos",
       "currencies": "Colones y dólares, cada uno por su lado",
-      "private": "Sin banco, sin IA, sin anuncios"
+      "private": "Sin conectar tu banco y sin anuncios"
     }
   },
   "login": {
     "title": "Entra a Harina",
     "button": "Entrar con llave de acceso",
-    "subtitle": "Tus finanzas, claras y en un solo lugar."
+    "subtitle": "Tus finanzas, claras y en un solo lugar.",
+    "signup": "Crear cuenta nueva",
+    "codeHelp": "En la app ve a Ajustes, «Entrar en la computadora», y escribe aquí el código que te muestra.",
+    "codePlaceholder": "Código del iPhone",
+    "codeButton": "Entrar",
+    "codeTitle": "¿Empezaste en el iPhone?"
   },
   "month": {
     "title": "Resumen",
@@ -153,7 +158,7 @@
   },
   "devices": {
     "title": "iPhone vinculados",
-    "intro": "Escanea el código con la cámara del iPhone y confirma en harina. Si no puedes escanear, en el iPhone ve a Ajustes, «Vincular con el servidor», y escribe el código.",
+    "intro": "Escanea el código con la cámara del iPhone y confirma en Harina. Si no puedes escanear, en el iPhone ve a Ajustes, «Vincular con el servidor», y escribe el código.",
     "server": "Servidor: {url}",
     "newCode": "Vincular iPhone",
     "code": "Escribe este código en el iPhone. Vence a las {time}",
@@ -166,7 +171,9 @@
   },
   "passkeys": {
     "add": "Agregar otra llave de acceso",
-    "added": "Llave de acceso agregada."
+    "added": "Llave de acceso agregada.",
+    "missingTitle": "Crea tu llave de acceso",
+    "missing": "Entraste con un código del iPhone. Agrega una llave de acceso para volver a entrar desde esta computadora."
   },
   "data": {
     "title": "Tus datos",
@@ -199,16 +206,19 @@
   "errors": {
     "generic": "Algo salió mal. Vuelve a intentar.",
     "unauthorized": "Tu sesión venció. Entra de nuevo.",
-    "already_set_up": "Esta instalación ya tiene dueño. Entra con tu llave de acceso.",
-    "setup_token_not_configured": "Falta configurar HARINA_SETUP_TOKEN en el servidor.",
-    "invalid_setup_token": "El código de configuración no es correcto.",
     "challenge_expired": "Pasó mucho tiempo. Vuelve a intentar.",
     "passkey_failed": "No se pudo verificar la llave de acceso.",
     "passkey_cancelled": "Se canceló la llave de acceso.",
     "passkey_unsupported": "Este navegador no admite llaves de acceso.",
     "invalid_link_code": "El código de vinculación no es válido o ya venció.",
     "invalid_record": "Algún dato no es válido.",
-    "too_many_records": "Demasiados cambios a la vez."
+    "too_many_records": "Demasiados cambios a la vez.",
+    "setup_required": "Esta instalación todavía no tiene cuentas. Créala con el código de configuración.",
+    "signup_closed": "Por ahora no se pueden crear cuentas nuevas aquí.",
+    "signup_full": "Por ahora no hay espacio para cuentas nuevas. Vuelve a intentar más tarde.",
+    "rate_limited": "Demasiados intentos. Espera un rato y vuelve a intentar.",
+    "invalid_code": "El código no es válido o ya venció.",
+    "invalid_space": "No tienes acceso a ese espacio."
   },
   "movements": {
     "title": "Movimientos",
@@ -345,12 +355,12 @@
   },
   "connect": {
     "title": "Conectar con tu asistente",
-    "intro": "{client} quiere conectarse con tu harina.",
+    "intro": "{client} quiere conectarse con tu Harina.",
     "from": "Desde {host}",
     "canRead": "Podrá ver tus movimientos, resúmenes, fijos y categorías.",
     "canWrite": "Permitir también anotar movimientos y cambiar categorías",
     "never": "Nunca podrá borrar movimientos ni cambiar montos.",
-    "warning": "Lo que vea se procesa con las reglas de ese asistente, no las de harina. Puedes quitar este permiso cuando quieras en Ajustes, «Conexiones».",
+    "warning": "Lo que vea se procesa con las reglas de ese asistente, no las de Harina. Puedes quitar este permiso cuando quieras en Ajustes, «Conexiones».",
     "allow": "Permitir",
     "deny": "No permitir",
     "unknownClient": "Asistente sin nombre",
@@ -370,5 +380,9 @@
     "confirmRevoke": "¿Quitar el acceso de «{name}»? Tendrá que volver a pedir permiso.",
     "copy": "Copiar",
     "copied": "Dirección copiada."
+  },
+  "account": {
+    "delete": "Borrar mi cuenta",
+    "confirmDelete": "Se borran tu cuenta, tus movimientos, tus llaves de acceso y tus iPhones vinculados. No se puede deshacer. Escribe BORRAR para confirmar."
   }
 }

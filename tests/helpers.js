@@ -1,5 +1,6 @@
 import { createApp } from "../src/app.js";
 import { createSession } from "../src/auth.js";
+import { createUser } from "../src/people.js";
 import { migrate } from "../src/storage/migrate.js";
 import { openSqlite } from "../src/storage/sqlite.js";
 
@@ -17,9 +18,17 @@ export async function setup(extra = {}, { decider = null } = {}) {
         body: body !== undefined ? JSON.stringify(body) : undefined,
       }),
     );
-  const login = async () => {
-    const { token } = await createSession(db);
-    return { Cookie: `__Host-harina=${token}`, Origin: ORIGIN };
+  /** A new person with a web session: `{ userId, personal, headers }`. */
+  const person = async (name) => {
+    const user = await createUser(db, { name });
+    const { token } = await createSession(db, user.id);
+    return { userId: user.id, personal: user.personalSpace, headers: { Cookie: `__Host-harina=${token}`, Origin: ORIGIN } };
   };
-  return { db, app, call, login };
+  let first;
+  /** Session headers of the first person (created on first use). */
+  const login = async () => {
+    first ??= await person("Primera");
+    return first.headers;
+  };
+  return { db, app, call, login, person };
 }

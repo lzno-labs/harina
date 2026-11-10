@@ -6,6 +6,7 @@ import { parseAmount } from "../public/money.js";
 import { formatMinor } from "./export.js";
 import { lookup } from "./locales.js";
 import { verifyAccessToken } from "./oauth.js";
+import { spacesOf } from "./people.js";
 import { push, ValidationError } from "./sync.js";
 
 export const MODERN_VERSIONS = ["2026-07-28"];
@@ -26,11 +27,18 @@ class RpcError extends Error {
 
 // ---------- data helpers ----------
 
-async function loadData(db) {
+async function spacesFor(db, userId) {
+  const s = await spacesOf(db, userId);
+  return { spaces: s.ids, personal: s.personal, userId };
+}
+
+/** Rows of the connected person's spaces only (docs/adr/0006-people-and-spaces.md). */
+async function loadData(db, who) {
+  const w = `space_id IN (${who.spaces.map(() => "?").join(",")})`;
   const [transactions, categories, accounts] = await Promise.all([
-    db.all("SELECT * FROM transactions WHERE deleted = 0"),
-    db.all("SELECT * FROM categories WHERE deleted = 0"),
-    db.all("SELECT * FROM accounts WHERE deleted = 0"),
+    db.all(`SELECT * FROM transactions WHERE deleted = 0 AND ${w}`, who.spaces),
+    db.all(`SELECT * FROM categories WHERE deleted = 0 AND ${w}`, who.spaces),
+    db.all(`SELECT * FROM accounts WHERE deleted = 0 AND ${w}`, who.spaces),
   ]);
   return { transactions, categories, accounts };
 }
@@ -85,8 +93,8 @@ export const TOOLS = [
     name: "get_month_summary",
     scope: "harina.read",
     inputSchema: { type: "object", properties: { month: str("month", { pattern: "^\\d{4}-\\d{2}$" }) }, additionalProperties: false },
-    async run({ db, cfg }, args) {
-      const { transactions, categories } = await loadData(db);
+    async run({ db, cfg, who }, args) {
+      const { transactions, categories } = await loadData(db, who);
       const month = args.month ?? dayIn(cfg.timeZone, new Date().toISOString()).slice(0, 7);
       const cats = new Map(categories.map((c) => [c.id, c]));
       const inMonth = transactions.filter((tx) => dayIn(cfg.timeZone, tx.occurred_at).startsWith(month));
@@ -134,8 +142,8 @@ export const TOOLS = [
       },
       additionalProperties: false,
     },
-    async run({ db, cfg }, args) {
-      const { transactions, categories, accounts } = await loadData(db);
+    async run({ db, cfg, who }, args) {
+      const { transactions, categories, accounts } = await loadData(db, who);
       const cats = new Map(categories.map((c) => [c.id, c]));
       const accs = new Map(accounts.map((a) => [a.id, a]));
       const q = merchantKey(args.query);
@@ -160,8 +168,8 @@ export const TOOLS = [
     name: "list_recurring",
     scope: "harina.read",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    async run({ db }) {
-      const { transactions, categories } = await loadData(db);
+    async run({ db, who }) {
+      const { transactions, categories } = await loadData(db, who);
       const cats = new Map(categories.map((c) => [c.id, c]));
       const rec = detectRecurring(transactions, new Date()).map((r) => ({
         merchant: r.merchant,
@@ -182,8 +190,8 @@ export const TOOLS = [
     name: "list_to_review",
     scope: "harina.read",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    async run({ db }) {
-      const { transactions, categories, accounts } = await loadData(db);
+    async run({ db, who }) {
+      const { transactions, categories, accounts } = await loadData(db, who);
       const cats = new Map(categories.map((c) => [c.id, c]));
       const accs = new Map(accounts.map((a) => [a.id, a]));
       const active = new Set(categories.map((c) => c.id));
@@ -203,8 +211,8 @@ export const TOOLS = [
     name: "list_categories",
     scope: "harina.read",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    async run({ db }) {
-      const { categories } = await loadData(db);
+    async run({ db, who }) {
+      const { categories } = await loadData(db, who);
       return result({ categories: categories.map((c) => ({ id: c.id, name: categoryName(c), emoji: c.icon ?? null })) });
     },
   },
@@ -225,8 +233,8 @@ export const TOOLS = [
       required: ["amount"],
       additionalProperties: false,
     },
-    async run({ db, cfg }, args) {
-      const { categories } = await loadData(db);
+    async run({ db, cfg, who }, args) {
+      const { categories } = await loadData(db, who);
       const currency = args.currency ?? cfg.defaultCurrency;
       const minor = parseAmount(String(args.amount ?? ""), currency);
       if (minor === null || minor <= 0) return toolError(t("mcp.errors.amount"));
@@ -254,7 +262,7 @@ export const TOOLS = [
         updated_at: Date.now(),
       };
       try {
-        await push(db, { transactions: [tx] });
+        await push(db, { transactions: [tx] }, who);
       } catch (e) {
         if (e instanceof ValidationError) return toolError(`${t("mcp.errors.invalid")} ${e.detail ?? ""}`.trim());
         throw e;
@@ -271,16 +279,19 @@ export const TOOLS = [
       required: ["transaction_id", "category"],
       additionalProperties: false,
     },
-    async run({ db }, args) {
-      const { categories } = await loadData(db);
+    async run({ db, who }, args) {
+      const { categories } = await loadData(db, who);
       const category = findCategory(categories, args.category);
       if (!category) return toolError(`${t("mcp.errors.category")} ${categories.map(categoryName).join(", ")}`);
-      const tx = await db.first("SELECT * FROM transactions WHERE id = ? AND deleted = 0", [String(args.transaction_id ?? "")]);
+      const tx = await db.first(
+        `SELECT * FROM transactions WHERE id = ? AND deleted = 0 AND space_id IN (${who.spaces.map(() => "?").join(",")})`,
+        [String(args.transaction_id ?? ""), ...who.spaces],
+      );
       if (!tx) return toolError(t("mcp.errors.notFound"));
       // A person (through their assistant) changing an automatic category is a correction.
       const auto = tx.category_auto === 1 ? (tx.category_id === category.id ? 1 : 2) : tx.category_auto;
-      const { seq: _seq, ...row } = tx;
-      await push(db, { transactions: [{ ...row, category_id: category.id, category_auto: auto, needs_review: Boolean(row.needs_review), deleted: false, updated_at: Math.max(Date.now(), tx.updated_at + 1) }] });
+      const { seq: _seq, created_by: _by, ...row } = tx;
+      await push(db, { transactions: [{ ...row, category_id: category.id, category_auto: auto, needs_review: Boolean(row.needs_review), deleted: false, updated_at: Math.max(Date.now(), tx.updated_at + 1) }] }, who);
       return result({ categorized: { id: tx.id, category: categoryName(category) } });
     },
   },
@@ -390,7 +401,7 @@ export async function handleMcp(req, { db, cfg }) {
           });
         }
         const args = params.arguments && typeof params.arguments === "object" ? params.arguments : {};
-        return reply({ ...complete, ...(await tool.run({ db, cfg }, args)) });
+        return reply({ ...complete, ...(await tool.run({ db, cfg, who: await spacesFor(db, grant.userId) }, args)) });
       }
       default:
         throw new RpcError(-32601, `Method not found: ${msg.method}`);

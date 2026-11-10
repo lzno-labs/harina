@@ -84,7 +84,7 @@ function checkField(entity, [col, type, opt], value) {
   throw new Error(`unknown type ${type}`);
 }
 
-/** Validates one pushed record and returns the row to store (without seq). */
+/** Validates one pushed record and returns the row to store (without seq or space). */
 export function validateRecord(entity, rec, now = Date.now()) {
   const fields = ENTITIES[entity];
   if (!fields) throw new ValidationError("invalid_entity", entity);
@@ -105,42 +105,55 @@ export function validateRecord(entity, rec, now = Date.now()) {
 }
 
 function upsertStatement(entity, row) {
-  const cols = ["id", ...ENTITIES[entity].map((f) => f[0]), "updated_at", "deleted"];
-  const sets = [...cols.slice(1), "seq"].map((c) => `${c} = excluded.${c}`).join(", ");
+  const data = [...ENTITIES[entity].map((f) => f[0]), "updated_at", "deleted"];
+  const cols = ["space_id", "id", ...data, ...(entity === "transactions" ? ["created_by"] : [])];
+  // created_by is set by the first write only; the rest follow last-writer-wins.
+  const sets = [...data, "seq"].map((c) => `${c} = excluded.${c}`).join(", ");
   return {
     sql:
       `INSERT INTO ${entity} (${cols.join(", ")}, seq) ` +
       `VALUES (${cols.map(() => "?").join(", ")}, (SELECT value FROM meta WHERE key = 'seq')) ` +
-      `ON CONFLICT (id) DO UPDATE SET ${sets} WHERE excluded.updated_at > ${entity}.updated_at`,
+      `ON CONFLICT (space_id, id) DO UPDATE SET ${sets} WHERE excluded.updated_at > ${entity}.updated_at`,
     params: cols.map((c) => row[c]),
   };
+}
+
+/** The spaces a request may touch (docs/adr/0006-people-and-spaces.md). */
+function inSpaces(spaces) {
+  if (!spaces?.length) throw new ValidationError("no_space");
+  return { sql: `space_id IN (${spaces.map(() => "?").join(",")})`, params: spaces };
 }
 
 const BUMP = { sql: "UPDATE meta SET value = value + 1 WHERE key = 'seq'", params: [] };
 
 /**
  * Applies pushed changes with last-writer-wins and returns the server's current version of
- * every pushed row, so a device whose change lost adopts the winner.
+ * every pushed row, so a device whose change lost adopts the winner. A row goes to the space it
+ * names, or to the person's personal space; a space the person is not in is refused.
  * @param {import("./storage/db.js").Db} db
  * @param {Record<string, unknown[]>} changes
+ * @param {{ spaces: string[], personal: string, userId: string }} who
  */
-export async function push(db, changes, now = Date.now()) {
+export async function push(db, changes, who, now = Date.now()) {
   if (!changes || typeof changes !== "object") throw new ValidationError("invalid_changes");
   const rows = [];
   for (const [entity, list] of Object.entries(changes)) {
     if (!ENTITIES[entity]) throw new ValidationError("invalid_entity", entity);
     if (!Array.isArray(list)) throw new ValidationError("invalid_changes", entity);
-    for (const rec of list) rows.push([entity, validateRecord(entity, rec, now)]);
+    for (const rec of list) {
+      const space = rec?.space_id ?? who.personal;
+      if (typeof space !== "string" || !who.spaces.includes(space)) throw new ValidationError("invalid_space", `${entity}.space_id`);
+      rows.push([entity, { ...validateRecord(entity, rec, now), space_id: space, created_by: who.userId }]);
+    }
   }
   if (rows.length > MAX_PUSH) throw new ValidationError("too_many_records");
   if (rows.length) await db.batch(rows.flatMap(([e, r]) => [BUMP, upsertStatement(e, r)]));
   const out = {};
   for (const entity of Object.keys(ENTITIES)) {
-    const ids = rows.filter(([e]) => e === entity).map(([, r]) => r.id);
     out[entity] = [];
-    for (let i = 0; i < ids.length; i += 100) {
-      const chunk = ids.slice(i, i + 100);
-      out[entity].push(...(await db.all(`SELECT * FROM ${entity} WHERE id IN (${chunk.map(() => "?").join(",")})`, chunk)));
+    for (const [e, r] of rows) {
+      if (e !== entity) continue;
+      out[entity].push(await db.first(`SELECT * FROM ${entity} WHERE space_id = ? AND id = ?`, [r.space_id, r.id]));
     }
   }
   return { seq: await currentSeq(db), records: out };
@@ -150,12 +163,16 @@ export async function currentSeq(db) {
   return (await db.first("SELECT value FROM meta WHERE key = 'seq'")).value;
 }
 
-/** Everything changed after `since`. `more` means call again with `seq` as the new `since`. */
-export async function pull(db, since = 0, limit = PULL_LIMIT) {
+/**
+ * Everything changed after `since` in the given spaces. `more` means call again with `seq` as
+ * the new `since`.
+ */
+export async function pull(db, since, spaces, limit = PULL_LIMIT) {
+  const w = inSpaces(spaces);
   const records = {
-    accounts: await db.all("SELECT * FROM accounts WHERE seq > ? ORDER BY seq", [since]),
-    categories: await db.all("SELECT * FROM categories WHERE seq > ? ORDER BY seq", [since]),
-    transactions: await db.all("SELECT * FROM transactions WHERE seq > ? ORDER BY seq LIMIT ?", [since, limit + 1]),
+    accounts: await db.all(`SELECT * FROM accounts WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
+    categories: await db.all(`SELECT * FROM categories WHERE seq > ? AND ${w.sql} ORDER BY seq`, [since, ...w.params]),
+    transactions: await db.all(`SELECT * FROM transactions WHERE seq > ? AND ${w.sql} ORDER BY seq LIMIT ?`, [since, ...w.params, limit + 1]),
   };
   let seq = await currentSeq(db);
   let more = false;

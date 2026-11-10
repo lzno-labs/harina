@@ -69,13 +69,15 @@ test("push, pull since, and last-writer-wins", async () => {
 });
 
 test("pull pages large histories", async () => {
-  const { db } = await setup();
+  const { db, person } = await setup();
   const { push, pull } = await import("../src/sync.js");
-  await push(db, { transactions: Array.from({ length: 30 }, (_, i) => tx({ id: `t${i}` })) });
-  const p1 = await pull(db, 0, 20);
+  const p = await person();
+  const who = { spaces: [p.personal], personal: p.personal, userId: p.userId };
+  await push(db, { transactions: Array.from({ length: 30 }, (_, i) => tx({ id: `t${i}` })) }, who);
+  const p1 = await pull(db, 0, who.spaces, 20);
   assert.equal(p1.more, true);
   assert.equal(p1.records.transactions.length, 20);
-  const p2 = await pull(db, p1.seq, 20);
+  const p2 = await pull(db, p1.seq, who.spaces, 20);
   assert.equal(p2.more, false);
   assert.equal(p2.records.transactions.length, 10);
 });

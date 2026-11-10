@@ -2,6 +2,7 @@
 import * as auth from "./auth.js";
 import { categorize, DEFAULT_CAP_TOKENS, DeciderError, setConsent, status as deciderStatus } from "./categorize.js";
 import { deleteAllData, exportCsv, exportJson } from "./export.js";
+import { DEFAULT_MAX_USERS, PeopleError, deleteUser, getUser, spacesOf } from "./people.js";
 import { LOCALES } from "./locales.js";
 import { pull, push, ValidationError } from "./sync.js";
 import * as oauth from "./oauth.js";
@@ -44,6 +45,8 @@ const error = (code, status) => json({ error: code }, status);
  * @param {string|boolean} [cfg.cimd]  HARINA_OAUTH_CIMD: "off" disables Client ID Metadata Documents
  * @param {string} [cfg.mcpOrigins]  HARINA_MCP_ORIGINS: extra browser origins allowed on /mcp, comma separated
  * @param {string} [cfg.timeZone]    HARINA_TZ for month boundaries in assistant answers (default America/Costa_Rica)
+ * @param {string} [cfg.signup]      HARINA_SIGNUP: "open" lets anyone sign up; anything else keeps it closed (first person only)
+ * @param {string|number} [cfg.maxUsers]  HARINA_MAX_USERS: cap on people when sign-up is open (default 1000)
  * @param {Function} [cfg.fetch]     fetch used for CIMD documents (tests inject one)
  */
 export function normalizeConfig(cfg) {
@@ -58,6 +61,8 @@ export function normalizeConfig(cfg) {
     mcpOrigins: String(cfg.mcpOrigins ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     timeZone: cfg.timeZone || "America/Costa_Rica",
     defaultCurrency: cfg.defaultCurrency || "CRC",
+    signup: cfg.signup === "open" ? "open" : "closed",
+    maxUsers: Number.isSafeInteger(Number(cfg.maxUsers)) && Number(cfg.maxUsers) > 0 ? Number(cfg.maxUsers) : DEFAULT_MAX_USERS,
     fetch: cfg.fetch ?? ((...a) => fetch(...a)),
   };
 }
@@ -131,11 +136,20 @@ export function createApp({ db, config, assets, decider = null }) {
     const bearer = (req.headers.get("Authorization") ?? "").match(/^Bearer (.+)$/)?.[1];
     if (bearer) {
       const device = await auth.deviceFromToken(db, bearer);
-      return device ? { kind: "device", device } : null;
+      return device ? { kind: "device", device: device.id, userId: device.userId } : null;
     }
     const token = readCookie(req, cookieName(cfg));
-    return (await auth.sessionValid(db, token)) ? { kind: "session", token } : null;
+    const userId = await auth.sessionUser(db, token);
+    return userId ? { kind: "session", token, userId } : null;
   }
+
+  /** The spaces a signed-in person can reach (docs/adr/0006-people-and-spaces.md). */
+  async function scope(userId) {
+    const s = await spacesOf(db, userId);
+    return { spaces: s.ids, personal: s.personal, userId };
+  }
+
+  const clientIp = (req) => req.headers.get("CF-Connecting-IP") ?? req.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ?? "local";
 
   // Cookie-authenticated writes must come from our own pages (CSRF defense on top of SameSite).
   function sameOrigin(req) {
@@ -203,7 +217,9 @@ export function createApp({ db, config, assets, decider = null }) {
     const who = await principal(req);
     if (!who && req.headers.has("Authorization")) return error("unauthorized", 401);
     if (method !== "GET" && who?.kind === "session" && !sameOrigin(req)) return error("bad_origin", 403);
-    if (method !== "GET" && !who && !sameOrigin(req) && path !== "/api/devices/link") return error("bad_origin", 403);
+    // The iPhone app has no Origin: linking and signing up from it are the only anonymous writes it makes.
+    const fromApp = path === "/api/devices/link" || path === "/api/auth/signup/device";
+    if (method !== "GET" && !who && !sameOrigin(req) && !fromApp) return error("bad_origin", 403);
     const needSession = () => {
       if (who?.kind !== "session") throw new auth.AuthError("unauthorized", 401);
     };
@@ -212,23 +228,28 @@ export function createApp({ db, config, assets, decider = null }) {
     };
 
     switch (`${method} ${path}`) {
-      case "GET /api/session":
+      case "GET /api/session": {
+        const user = who?.kind === "session" ? await getUser(db, who.userId) : null;
         return json({
-          authenticated: who?.kind === "session",
-          setupNeeded: !(await auth.hasCredentials(db)),
+          authenticated: Boolean(user),
+          user: user ? { id: user.id, name: user.name, hasPasskey: await auth.hasPasskey(db, user.id) } : null,
+          setupNeeded: await auth.setupNeeded(db),
+          signup: cfg.signup,
           origin: cfg.origin,
         });
+      }
 
       case "POST /api/auth/register/options": {
         const body = await readJson(req);
-        return json(await auth.registrationOptions(db, cfg, { authenticated: who?.kind === "session", setupToken: body.setupToken }));
+        const userId = who?.kind === "session" ? who.userId : null;
+        return json(await auth.registrationOptions(db, cfg, { userId, setupToken: body.setupToken, ip: clientIp(req) }));
       }
       case "POST /api/auth/register/verify": {
         const body = await readJson(req);
-        const authenticated = who?.kind === "session";
-        const s = await auth.registrationVerify(db, cfg, { ...body, authenticated });
-        if (authenticated) return json({ ok: true });
-        return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, s.token, auth.SESSION_TTL_MS) });
+        const userId = who?.kind === "session" ? who.userId : null;
+        const r = await auth.registrationVerify(db, cfg, { ...body, userId });
+        if (!r.session) return json({ ok: true });
+        return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, r.session.token, auth.SESSION_TTL_MS) });
       }
       case "POST /api/auth/login/options":
         return json(await auth.authenticationOptions(db, cfg));
@@ -240,45 +261,60 @@ export function createApp({ db, config, assets, decider = null }) {
         if (who?.kind === "session") await auth.endSession(db, who.token);
         return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, "", 0) });
 
+      // Sign up from the iPhone: a new person and this device's token in one step.
+      case "POST /api/auth/signup/device": {
+        const body = await readJson(req);
+        return json(await auth.signupDevice(db, cfg, { name: body.name, deviceName: body.deviceName, ip: clientIp(req) }));
+      }
+      // The iPhone shows a one-time code to open the same account on the web.
+      case "POST /api/auth/web-code":
+        if (who?.kind !== "device") throw new auth.AuthError("unauthorized", 401);
+        return json(await auth.createCode(db, who.userId, "web"));
+      case "POST /api/auth/web-code/redeem": {
+        const body = await readJson(req);
+        const r = await auth.redeemWebCode(db, body);
+        return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, r.session.token, auth.SESSION_TTL_MS) });
+      }
+
       case "POST /api/devices/link-code":
         needSession();
-        return json(await auth.createLinkCode(db));
+        return json(await auth.createCode(db, who.userId, "link"));
       case "POST /api/devices/link": {
         const body = await readJson(req);
         return json(await auth.linkDevice(db, body));
       }
       case "GET /api/devices":
         needSession();
-        return json({ devices: await auth.listDevices(db) });
+        return json({ devices: await auth.listDevices(db, who.userId) });
 
       case "GET /api/sync": {
         needAny();
         const since = Number(url.searchParams.get("since") ?? 0);
         if (!Number.isSafeInteger(since) || since < 0) return error("invalid_since", 400);
-        return json(await pull(db, since));
+        return json(await pull(db, since, (await scope(who.userId)).spaces));
       }
       case "POST /api/sync": {
         needAny();
         const body = await readJson(req);
-        return json(await push(db, body.changes));
+        return json(await push(db, body.changes, await scope(who.userId)));
       }
 
       // ----- Hosted category decider (docs/design/hosted-decision-model.md) -----
       case "GET /api/decider":
         needAny();
-        return json(await deciderStatus(db, decider, capTokens));
+        return json(await deciderStatus(db, decider, capTokens, who.userId));
       case "POST /api/decider/consent": {
         needAny();
         const body = await readJson(req);
         if (typeof body.on !== "boolean") return error("invalid_consent", 400);
-        await setConsent(db, body.on);
-        return json(await deciderStatus(db, decider, capTokens));
+        await setConsent(db, who.userId, body.on);
+        return json(await deciderStatus(db, decider, capTokens, who.userId));
       }
       case "POST /api/categorize": {
         needAny();
         const body = await readJson(req);
         try {
-          return json(await categorize(db, decider, capTokens, body));
+          return json(await categorize(db, decider, capTokens, await scope(who.userId), body));
         } catch (e) {
           if (e instanceof DeciderError) return error(e.code, e.status);
           throw e;
@@ -287,10 +323,10 @@ export function createApp({ db, config, assets, decider = null }) {
 
       case "GET /api/export.json":
         needAny();
-        return json(await exportJson(db), 200, { "Content-Disposition": 'attachment; filename="harina.json"' });
+        return json(await exportJson(db, (await scope(who.userId)).spaces), 200, { "Content-Disposition": 'attachment; filename="harina.json"' });
       case "GET /api/export.csv":
         needAny();
-        return new Response(await exportCsv(db), {
+        return new Response(await exportCsv(db, (await scope(who.userId)).spaces), {
           headers: {
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition": 'attachment; filename="harina.csv"',
@@ -301,8 +337,16 @@ export function createApp({ db, config, assets, decider = null }) {
         needSession();
         const body = await readJson(req);
         if (body.confirm !== true) return error("confirmation_required", 400);
-        await deleteAllData(db);
+        await deleteAllData(db, (await scope(who.userId)).personal);
         return json({ ok: true });
+      }
+      // Deletes the person: personal space, passkeys, devices and connections (ADR-0006).
+      case "POST /api/account/delete": {
+        needSession();
+        const body = await readJson(req);
+        if (body.confirm !== true) return error("confirmation_required", 400);
+        await deleteUser(db, who.userId);
+        return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, "", 0) });
       }
     }
 
@@ -320,7 +364,7 @@ export function createApp({ db, config, assets, decider = null }) {
       needSession();
       const body = await readJson(req);
       try {
-        return json(await oauth.decide(db, cfg, { id: body.id, approve: body.approve === true, write: body.write === true }));
+        return json(await oauth.decide(db, cfg, { id: body.id, approve: body.approve === true, write: body.write === true, userId: who.userId }));
       } catch (e) {
         if (e instanceof oauth.OAuthError) return error(e.code, e.status === 404 ? 404 : 400);
         throw e;
@@ -328,19 +372,19 @@ export function createApp({ db, config, assets, decider = null }) {
     }
     if (path === "/api/connections" && method === "GET") {
       needSession();
-      return json({ connections: await oauth.listGrants(db) });
+      return json({ connections: await oauth.listGrants(db, who.userId) });
     }
     const conn = path.match(/^\/api\/connections\/([A-Za-z0-9_-]{1,64})$/);
     if (conn && method === "DELETE") {
       needSession();
-      await oauth.revokeGrant(db, conn[1]);
+      await oauth.revokeGrant(db, who.userId, conn[1]);
       return json({ ok: true });
     }
 
     const dev = path.match(/^\/api\/devices\/([A-Za-z0-9_-]{1,64})$/);
     if (dev && method === "DELETE") {
       needSession();
-      await auth.revokeDevice(db, dev[1]);
+      await auth.revokeDevice(db, who.userId, dev[1]);
       return json({ ok: true });
     }
     return error("not_found", 404);
@@ -351,7 +395,7 @@ export function createApp({ db, config, assets, decider = null }) {
     try {
       res = await route(req);
     } catch (e) {
-      if (e instanceof auth.AuthError) res = error(e.code, e.status);
+      if (e instanceof auth.AuthError || e instanceof PeopleError) res = error(e.code, e.status);
       else if (e instanceof ValidationError) res = json({ error: e.code, detail: e.detail }, 400);
       else {
         console.error(e);
