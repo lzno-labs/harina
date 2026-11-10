@@ -121,6 +121,9 @@
 
 "link.server" = "Dirección del servidor, por ejemplo https://harina.lzno.app";
 "link.code" = "Código de vinculación";
+"link.serverLabel" = "Servidor";
+"link.useOther" = "Usar otro servidor";
+"link.otherHelp" = "harina es de código abierto. Si tienes tu propio servidor de harina, actívalo y escribe su dirección.";
 "link.help" = "En la web de harina: Ajustes, «Generar código de vinculación». El código sirve una sola vez y vence en 10 minutos.";
 "link.button" = "Vincular";
 "link.badServer" = "La dirección debe empezar con https://";

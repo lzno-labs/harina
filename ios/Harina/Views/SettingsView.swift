@@ -128,17 +128,36 @@ struct LinkView: View {
     @EnvironmentObject private var sync: SyncService
     @Environment(\.dismiss) private var dismiss
     @State private var server = "https://"
+    @State private var otherServer = LinkView.defaultServer == nil
     @State private var code = ""
     @State private var working = false
     @State private var failed: LocalizedStringKey?
 
+    /// The server this build offers by default (Info.plist `HarinaDefaultServer`), if any.
+    static var defaultServer: URL? {
+        guard let text = Bundle.main.object(forInfoDictionaryKey: "HarinaDefaultServer") as? String,
+              text.hasPrefix("https://"), let url = URL(string: text), url.host() != nil else { return nil }
+        return url
+    }
+
     var body: some View {
         Form {
             Section {
-                TextField("link.server", text: $server).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                if let preset = Self.defaultServer, !otherServer {
+                    LabeledContent("link.serverLabel") { Text(verbatim: preset.host() ?? preset.absoluteString) }
+                } else {
+                    TextField("link.server", text: $server).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                }
                 TextField("link.code", text: $code).textInputAutocapitalization(.characters).autocorrectionDisabled()
             } footer: {
                 Text("link.help")
+            }
+            if Self.defaultServer != nil {
+                Section {
+                    Toggle("link.useOther", isOn: $otherServer)
+                } footer: {
+                    Text("link.otherHelp")
+                }
             }
             Button("link.button") { Task { await link() } }.disabled(working || code.count < 8)
             if let failed { Text(failed).foregroundStyle(.red) }
@@ -147,7 +166,8 @@ struct LinkView: View {
     }
 
     private func link() async {
-        guard let url = URL(string: server.trimmingCharacters(in: .whitespaces)), url.scheme == "https" || url.host() == "localhost" else {
+        let chosen = !otherServer ? Self.defaultServer : URL(string: server.trimmingCharacters(in: .whitespaces))
+        guard let url = chosen, url.scheme == "https" || url.host() == "localhost" else {
             failed = "link.badServer"
             return
         }

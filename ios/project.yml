@@ -51,6 +51,7 @@ targets:
         NSFaceIDUsageDescription: $(HARINA_FACE_ID_TEXT)
         # iCloud link of a ready-made capture shortcut for this build (empty: manual steps).
         HarinaShortcutURL: $(HARINA_SHORTCUT_URL)
+        HarinaDefaultServer: $(HARINA_DEFAULT_SERVER)
 schemes:
   Harina:
     build:
