@@ -250,7 +250,7 @@ export async function describeRequest(db, cfg, id) {
 }
 
 /** The person's decision on the consent page (passkey session required by the caller). */
-export async function decide(db, cfg, { id, approve, write }) {
+export async function decide(db, cfg, { id, approve, write, userId }) {
   const req = await pendingRequest(db, id);
   await db.run("DELETE FROM oauth_requests WHERE id = ?", [req.id]);
   if (!approve) return { redirect: withParams(req.redirect_uri, { error: "access_denied", state: req.state, iss: cfg.origin }) };
@@ -258,8 +258,8 @@ export async function decide(db, cfg, { id, approve, write }) {
   const client = await getClient(db, cfg, req.client_id);
   const grantId = randomToken(12);
   await db.run(
-    "INSERT INTO oauth_grants (id, client_id, client_name, scopes, resource, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-    [grantId, client.id, client.name, scopes.join(" "), req.resource, Date.now()],
+    "INSERT INTO oauth_grants (id, user_id, client_id, client_name, scopes, resource, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+    [grantId, userId, client.id, client.name, scopes.join(" "), req.resource, Date.now()],
   );
   const code = randomToken(32);
   await db.run(
@@ -359,17 +359,17 @@ export async function revoke(db, form) {
 export async function verifyAccessToken(db, cfg, bearer) {
   if (!bearer) return null;
   const row = await db.first(
-    "SELECT t.scopes, t.expires_at, g.id AS grant_id, g.resource, g.revoked, g.client_name FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id " +
+    "SELECT t.scopes, t.expires_at, g.id AS grant_id, g.user_id, g.resource, g.revoked, g.client_name FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id " +
       "WHERE t.token_hash = ? AND t.kind = 'access'",
     [await sha256(bearer)],
   );
   if (!row || row.revoked || row.expires_at < Date.now() || row.resource !== resourceOf(cfg)) return null;
   await db.run("UPDATE oauth_grants SET last_used_at = ? WHERE id = ?", [Date.now(), row.grant_id]);
-  return { grantId: row.grant_id, scopes: row.scopes.split(" "), clientName: row.client_name };
+  return { grantId: row.grant_id, userId: row.user_id, scopes: row.scopes.split(" "), clientName: row.client_name };
 }
 
-export async function listGrants(db) {
-  return (await db.all("SELECT id, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants WHERE revoked = 0 ORDER BY created_at DESC")).map(
+export async function listGrants(db, userId) {
+  return (await db.all("SELECT id, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants WHERE revoked = 0 AND user_id = ? ORDER BY created_at DESC", [userId])).map(
     (g) => ({ ...g, scopes: g.scopes.split(" "), host: hostOf(g.client_id) }),
   );
 }
@@ -382,6 +382,7 @@ function hostOf(clientId) {
   }
 }
 
-export async function revokeGrant(db, id) {
-  await revokeGrantTokens(db, id);
+export async function revokeGrant(db, userId, id) {
+  const grant = await db.first("SELECT id FROM oauth_grants WHERE id = ? AND user_id = ?", [id, userId]);
+  if (grant) await revokeGrantTokens(db, grant.id);
 }

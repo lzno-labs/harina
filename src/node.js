@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 import { createDecider } from "./decider.js";
 import { configFromEnv, ensureSetupToken } from "./config.js";
-import { hasCredentials } from "./auth.js";
+import { setupNeeded } from "./auth.js";
 import { migrate } from "./storage/migrate.js";
 import { openSqlite } from "./storage/sqlite.js";
 
@@ -54,7 +54,7 @@ async function main() {
   const db = openSqlite(cfg.dbPath);
   const applied = await migrate(db);
   if (applied.length) console.log(`harina: applied migrations ${applied.join(", ")}`);
-  if (!(await hasCredentials(db))) cfg = ensureSetupToken(cfg);
+  if (await setupNeeded(db)) cfg = ensureSetupToken(cfg);
   const app = createApp({ db, config: cfg, assets: serveStatic, decider: createDecider(process.env) });
   createServer(async (req, res) => {
     const r = await app(await toRequest(req, cfg.origin));

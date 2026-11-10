@@ -12,7 +12,7 @@ test("first-run setup needs the setup token, then closes", async () => {
 
   const bad = await call("/api/auth/register/options", { method: "POST", body: { setupToken: "nope" }, headers: h });
   assert.equal(bad.status, 403);
-  assert.equal((await bad.json()).error, "invalid_setup_token");
+  assert.equal((await bad.json()).error, "setup_required");
 
   const authn = await createAuthenticator();
   const { challengeId, options } = await (await call("/api/auth/register/options", { method: "POST", body: { setupToken: "secret-setup" }, headers: h })).json();
@@ -26,8 +26,9 @@ test("first-run setup needs the setup token, then closes", async () => {
   const s = await (await call("/api/session", { headers: { Cookie: cookie } })).json();
   assert.deepEqual([s.authenticated, s.setupNeeded], [true, false]);
 
+  // Sign-up is closed by default: the setup token only creates the first person.
   const again = await call("/api/auth/register/options", { method: "POST", body: { setupToken: "secret-setup" }, headers: h });
-  assert.equal((await again.json()).error, "already_set_up");
+  assert.equal((await again.json()).error, "signup_closed");
 
   // Log in with the same passkey; the challenge is single use.
   const lo = await (await call("/api/auth/login/options", { method: "POST", body: {}, headers: h })).json();
@@ -57,7 +58,7 @@ test("an assertion for another origin is rejected", async () => {
 test("setup is disabled when no setup token is configured", async () => {
   const { call } = await setup({ setupToken: "" });
   const r = await call("/api/auth/register/options", { method: "POST", body: { setupToken: "" }, headers: { Origin: ORIGIN } });
-  assert.equal((await r.json()).error, "setup_token_not_configured");
+  assert.equal((await r.json()).error, "setup_required");
 });
 
 test("cookie-authenticated writes need our Origin", async () => {

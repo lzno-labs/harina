@@ -14,6 +14,8 @@ export function configFromEnv(env = process.env) {
     mcpOrigins: env.HARINA_MCP_ORIGINS || "",
     timeZone: env.HARINA_TZ || "America/Costa_Rica",
     aiCapTokens: env.HARINA_AI_CAP_TOKENS,
+    signup: env.HARINA_SIGNUP || "closed",
+    maxUsers: env.HARINA_MAX_USERS,
   };
 }
 

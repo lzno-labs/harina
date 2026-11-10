@@ -27,7 +27,7 @@ cp .env.example .env      # set HARINA_ORIGIN to the address you will open
 npm start                 # prints a one-time setup code on first run
 ```
 
-Open `http://localhost:8787`, type the setup code and create your passkey. For access from other devices, serve it over HTTPS (any reverse proxy) and set `HARINA_ORIGIN` to that address: passkeys are bound to the hostname.
+Open `http://localhost:8787`, type the setup code and create your passkey: that creates the first account. To let other people create their own accounts (each with a private personal space), set `HARINA_SIGNUP=open`. Lost every passkey? `npm run login-code` prints a one-time code to sign in and add a new one. For access from other devices, serve it over HTTPS (any reverse proxy) and set `HARINA_ORIGIN` to that address: passkeys are bound to the hostname.
 
 To run on Cloudflare instead, copy `wrangler.example.toml` to `wrangler.toml`, create a D1 database, then `npx wrangler d1 migrations apply harina --remote` and `npx wrangler deploy`. See [ADR 0001](docs/adr/0001-where-it-runs.md).
 

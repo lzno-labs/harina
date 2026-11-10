@@ -4,7 +4,7 @@ import HarinaKit
 import SwiftData
 
 enum SyncError: Error {
-    case notLinked, unauthorized, server(Int), invalidLinkCode
+    case notLinked, unauthorized, server(Int), invalidLinkCode, signupClosed
 }
 
 /// Offline-first sync (docs/adr/0002-sync.md): push local changes, then pull since the last seq.
@@ -37,9 +37,39 @@ final class SyncService: ObservableObject {
         if http.statusCode == 400 { throw SyncError.invalidLinkCode }
         guard http.statusCode == 200 else { throw SyncError.server(http.statusCode) }
         let link = try JSONDecoder().decode(LinkResponse.self, from: data)
-        Keychain.save(link.token)
+        adopt(server: server, token: link.token)
+    }
+
+    /// Creates a new account on the server with this iPhone as its first device
+    /// (docs/design/people-and-spaces.md). Everything already on the phone goes to it.
+    func signUp(server: URL, deviceName: String) async throws {
+        var req = URLRequest(url: server.appending(path: "api/auth/signup/device"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["deviceName": deviceName])
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw SyncError.server(0) }
+        if http.statusCode == 403 || http.statusCode == 429 { throw SyncError.signupClosed }
+        guard http.statusCode == 200 else { throw SyncError.server(http.statusCode) }
+        let link = try JSONDecoder().decode(LinkResponse.self, from: data)
+        adopt(server: server, token: link.token)
+    }
+
+    /// A one-time code to open this account on the web (valid 10 minutes).
+    func webCode() async throws -> String {
+        struct Code: Decodable { let code: String }
+        return try JSONDecoder().decode(Code.self, from: try await request("/api/auth/web-code", method: "POST", body: Data("{}".utf8), timeout: 10)).code
+    }
+
+    /// Starts syncing with an account: the whole local history goes up, then everything comes down.
+    private func adopt(server: URL, token: String) {
+        Keychain.save(token)
         AppSettings.serverURL = server
         AppSettings.lastSeq = 0
+        for m in (try? context.fetch(FetchDescriptor<Movement>())) ?? [] { m.dirty = true }
+        for c in (try? context.fetch(FetchDescriptor<CategoryItem>())) ?? [] { c.dirty = true }
+        for a in (try? context.fetch(FetchDescriptor<AccountItem>())) ?? [] { a.dirty = true }
+        try? context.save()
     }
 
     func unlink() {

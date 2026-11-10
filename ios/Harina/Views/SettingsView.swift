@@ -26,6 +26,7 @@ struct SettingsView: View {
                     }
                     if sync.lastError != nil { Text("settings.syncError").foregroundStyle(.orange) }
                     Button("settings.syncNow") { Task { await sync.sync() } }.disabled(sync.syncing)
+                    NavigationLink("webcode.title") { WebCodeView() }
                     Button("settings.unlink", role: .destructive) { sync.unlink() }
                 } else {
                     NavigationLink("settings.link") { LinkView() }
@@ -160,14 +161,44 @@ struct LinkView: View {
                 }
             }
             Button("link.button") { Task { await link() } }.disabled(working || code.count < 8)
+            Section {
+                Button("signup.button") { Task { await signUp() } }.disabled(working)
+            } header: {
+                Text("signup.header")
+            } footer: {
+                Text("signup.footer")
+            }
             if let failed { Text(failed).foregroundStyle(.red) }
         }
         .navigationTitle("settings.link")
     }
 
+    private var chosenServer: URL? {
+        let url = !otherServer ? Self.defaultServer : URL(string: server.trimmingCharacters(in: .whitespaces))
+        guard let url, url.scheme == "https" || url.host() == "localhost" else { return nil }
+        return url
+    }
+
+    private func signUp() async {
+        guard let url = chosenServer else {
+            failed = "link.badServer"
+            return
+        }
+        working = true
+        defer { working = false }
+        do {
+            try await sync.signUp(server: url, deviceName: UIDevice.current.name)
+            await sync.sync()
+            dismiss()
+        } catch SyncError.signupClosed {
+            failed = "signup.closed"
+        } catch {
+            failed = "link.failed"
+        }
+    }
+
     private func link() async {
-        let chosen = !otherServer ? Self.defaultServer : URL(string: server.trimmingCharacters(in: .whitespaces))
-        guard let url = chosen, url.scheme == "https" || url.host() == "localhost" else {
+        guard let url = chosenServer else {
             failed = "link.badServer"
             return
         }
@@ -207,3 +238,42 @@ struct AutomationHelpView: View {
         .navigationTitle("settings.automationHelp")
     }
 }
+
+/// A one-time code to open this account on the web, where the person adds a passkey
+/// (docs/design/people-and-spaces.md).
+struct WebCodeView: View {
+    @EnvironmentObject private var sync: SyncService
+    @State private var code: String?
+    @State private var failed = false
+
+    var body: some View {
+        Form {
+            Section {
+                if let code {
+                    Text(verbatim: code)
+                        .font(.system(.largeTitle, design: .monospaced).weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .textSelection(.enabled)
+                } else if failed {
+                    Text("webcode.failed").foregroundStyle(.red)
+                } else {
+                    ProgressView().frame(maxWidth: .infinity)
+                }
+            } footer: {
+                if let host = AppSettings.serverURL?.host() {
+                    Text("webcode.help \(host)")
+                }
+            }
+            Button("webcode.new") { Task { await load() } }
+        }
+        .navigationTitle("webcode.title")
+        .task { await load() }
+    }
+
+    private func load() async {
+        failed = false
+        code = nil
+        do { code = try await sync.webCode() } catch { failed = true }
+    }
+}
+

@@ -18,6 +18,8 @@ struct OnboardingView: View {
     @State private var openedShortcuts = false
     @State private var showLinkForm = false
     @State private var storage: Storage?
+    @State private var signingUp = false
+    @State private var signupError: LocalizedStringKey?
 
     /// Where the person keeps their data: only on this iPhone, or also on a server (docs/design/onboarding.md).
     private enum Storage { case local, server }
@@ -210,6 +212,8 @@ struct OnboardingView: View {
                                       + (AppleIntelligence.status == .available ? [] : ["onboarding.storage.server.pro4"]),
                                   cons: ["onboarding.storage.server.con1", "onboarding.storage.server.con2"])
                     if storage == .server {
+                        if let signupError { Text(signupError).font(.footnote).foregroundStyle(.red) }
+                        Text("onboarding.link.haveAccount").font(.subheadline.weight(.semibold))
                         VStack(alignment: .leading, spacing: 12) {
                             if let host = LinkView.defaultServer?.host() {
                                 Label("onboarding.link.qr1.host \(host)", systemImage: "desktopcomputer")
@@ -232,10 +236,36 @@ struct OnboardingView: View {
             } else {
                 switch storage {
                 case .local: Button("onboarding.storage.startLocal", action: done).buttonStyle(BrandButtonStyle())
-                case .server: Button("onboarding.link.later", action: done).buttonStyle(BrandButtonStyle())
+                case .server:
+                    if let host = LinkView.defaultServer?.host() {
+                        Button { Task { await signUp() } } label: {
+                            if signingUp { ProgressView().tint(.white) } else { Text("onboarding.signup.button \(host)") }
+                        }
+                        .buttonStyle(BrandButtonStyle())
+                        .disabled(signingUp)
+                        Button("onboarding.link.later", action: done).font(.subheadline.weight(.semibold))
+                    } else {
+                        Button("onboarding.link.later", action: done).buttonStyle(BrandButtonStyle())
+                    }
                 case nil: Button("onboarding.storage.choose") {}.buttonStyle(BrandButtonStyle()).disabled(true).opacity(0.5)
                 }
             }
+        }
+    }
+
+    /// Creates the account on the default server with this iPhone (docs/design/people-and-spaces.md).
+    private func signUp() async {
+        guard let server = LinkView.defaultServer else { return }
+        signingUp = true
+        signupError = nil
+        defer { signingUp = false }
+        do {
+            try await sync.signUp(server: server, deviceName: UIDevice.current.name)
+            await sync.sync()
+        } catch SyncError.signupClosed {
+            signupError = "signup.closed"
+        } catch {
+            signupError = "link.failed"
         }
     }
 

@@ -27,7 +27,7 @@ cp .env.example .env      # pon en HARINA_ORIGIN la dirección que vas a abrir
 npm start                 # la primera vez muestra un código de configuración
 ```
 
-Abre `http://localhost:8787`, escribe el código y crea tu llave de acceso. Para entrar desde otros dispositivos, sírvelo con HTTPS (cualquier proxy inverso) y pon esa dirección en `HARINA_ORIGIN`: las llaves de acceso quedan atadas al nombre del servidor.
+Abre `http://localhost:8787`, escribe el código y crea tu llave de acceso: así se crea la primera cuenta. Para que otras personas creen sus propias cuentas (cada una con su espacio personal privado), pon `HARINA_SIGNUP=open`. ¿Perdiste todas tus llaves? `npm run login-code` muestra un código de un solo uso para entrar y crear otra. Para entrar desde otros dispositivos, sírvelo con HTTPS (cualquier proxy inverso) y pon esa dirección en `HARINA_ORIGIN`: las llaves de acceso quedan atadas al nombre del servidor.
 
 Para correrlo en Cloudflare, copia `wrangler.example.toml` a `wrangler.toml`, crea una base D1 y corre `npx wrangler d1 migrations apply harina --remote` y `npx wrangler deploy`. Detalles en el [ADR 0001](docs/adr/0001-where-it-runs.md) (en inglés).
 

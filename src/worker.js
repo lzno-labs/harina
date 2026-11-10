@@ -20,6 +20,8 @@ export default {
           mcpOrigins: env.HARINA_MCP_ORIGINS,
           timeZone: env.HARINA_TZ,
           aiCapTokens: env.HARINA_AI_CAP_TOKENS,
+          signup: env.HARINA_SIGNUP,
+          maxUsers: env.HARINA_MAX_USERS,
         },
         decider: createDecider(env),
         assets: (req) => env.ASSETS.fetch(req),

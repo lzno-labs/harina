@@ -12,7 +12,7 @@
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/node.js",
     "test": "TZ=UTC node --disable-warning=ExperimentalWarning --test 'tests/*.test.js'",
     "lint": "eslint . && node scripts/check-i18n.js",
-    "reset-passkeys": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli.js reset-passkeys"
+    "login-code": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli.js login-code"
   },
   "dependencies": {
     "@simplewebauthn/server": "13.3.3"

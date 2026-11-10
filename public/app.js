@@ -363,6 +363,17 @@ function features() {
   );
 }
 
+function passkeySignup(body = {}) {
+  return guarded(async () => {
+    if (!supported()) throw new Error("passkey_unsupported");
+    const { challengeId, options } = await api("/api/auth/register/options", { method: "POST", body });
+    const response = await createPasskey(options);
+    await api("/api/auth/register/verify", { method: "POST", body: { ...body, challengeId, response } });
+    await boot();
+  });
+}
+
+/** First person on a closed instance: the setup token creates the account. */
 function viewSetup() {
   const token = h("input", { class: "input", name: "token", autocomplete: "one-time-code", required: true, placeholder: t("setup.token"), "aria-label": t("setup.token") });
   authScreen(
@@ -374,13 +385,7 @@ function viewSetup() {
       {
         onsubmit: (e) => {
           e.preventDefault();
-          guarded(async () => {
-            if (!supported()) throw new Error("passkey_unsupported");
-            const { challengeId, options } = await api("/api/auth/register/options", { method: "POST", body: { setupToken: token.value } });
-            const response = await createPasskey(options);
-            await api("/api/auth/register/verify", { method: "POST", body: { setupToken: token.value, challengeId, response } });
-            await boot();
-          });
+          passkeySignup({ setupToken: token.value });
         },
       },
       token,
@@ -389,7 +394,9 @@ function viewSetup() {
   );
 }
 
-function viewLogin() {
+/** Sign in with a passkey, create an account (open sign-up) or use a code shown on the iPhone. */
+function viewLogin(session) {
+  const code = h("input", { class: "input", name: "code", autocomplete: "one-time-code", placeholder: t("login.codePlaceholder"), "aria-label": t("login.codePlaceholder") });
   authScreen(
     h("h1", { text: t("login.title") }),
     h("p", { text: t("login.subtitle") }),
@@ -409,6 +416,23 @@ function viewLogin() {
       },
       icon("key"),
       t("login.button"),
+    ),
+    session.signup === "open" ? h("button", { class: "btn block", onclick: () => passkeySignup() }, icon("plus"), t("login.signup")) : null,
+    h("p", { class: "muted", text: t("login.codeHelp") }),
+    h(
+      "form",
+      {
+        class: "inline-form",
+        onsubmit: (e) => {
+          e.preventDefault();
+          guarded(async () => {
+            await api("/api/auth/web-code/redeem", { method: "POST", body: { code: code.value } });
+            await boot();
+          });
+        },
+      },
+      code,
+      h("button", { class: "btn" }, t("login.codeButton")),
     ),
   );
 }
@@ -1412,12 +1436,26 @@ async function viewSettings() {
                   const { challengeId, options } = await api("/api/auth/register/options", { method: "POST", body: {} });
                   const response = await createPasskey(options);
                   await api("/api/auth/register/verify", { method: "POST", body: { challengeId, response } });
+                  if (state.session?.user) state.session.user.hasPasskey = true;
                   toast(t("passkeys.added"));
                 }),
             }, icon("key"), t("passkeys.add")),
           ),
+          state.session?.user && !state.session.user.hasPasskey ? row(iconTile("key", "#ffb547", "#ff7a45"), t("passkeys.missingTitle"), t("passkeys.missing")) : null,
           h("div", { class: "row" },
             h("button", { class: "btn block", onclick: () => guarded(async () => (await api("/api/auth/logout", { method: "POST", body: {} }), boot())) }, icon("logout"), t("nav.logout")),
+          ),
+          h("div", { class: "row" },
+            h("button", {
+              class: "btn block danger ghost",
+              onclick: () => {
+                if (prompt(t("account.confirmDelete")) !== t("data.confirmWord")) return;
+                guarded(async () => {
+                  await api("/api/account/delete", { method: "POST", body: { confirm: true } });
+                  await boot();
+                });
+              },
+            }, icon("trash"), t("account.delete")),
           ),
           h("div", { class: "row" },
             h("button", {
@@ -1517,10 +1555,11 @@ async function boot() {
     return app.replaceChildren(h("div", { class: "auth" }, h("p", { text: errorText(e) })));
   }
   state.origin = session.origin;
-  if (session.setupNeeded) return viewSetup();
+  state.session = session;
+  if (session.setupNeeded && session.signup !== "open") return viewSetup();
   const consent = (location.hash || "").match(/^#\/autorizar\/(.+)$/)?.[1];
   if (consent?.startsWith("error/")) return viewConsent(consent);
-  if (!session.authenticated) return viewLogin();
+  if (!session.authenticated) return viewLogin(session);
   if (consent) return viewConsent(consent);
   for (const k of ["accounts", "categories", "transactions"]) state[k].clear();
   await guarded(async () => {

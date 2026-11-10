@@ -8,7 +8,6 @@ import { lookup } from "./locales.js";
 import { ValidationError } from "./sync.js";
 
 const LANG = "es";
-const CONSENT = "decider_consent_at";
 const MAX_EXAMPLES = 40;
 const CALLS_PER_HOUR = 120;
 /** Default monthly cap: about 1 USD at 0.038 USD per million input tokens. */
@@ -34,18 +33,21 @@ function bump(key, by) {
   return { sql: "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = value + excluded.value", params: [key, by] };
 }
 
-export async function status(db, decider, capTokens, now = Date.now()) {
+/** Consent is per person (docs/adr/0006-people-and-spaces.md). */
+const consentKey = (userId) => `decider_consent_at:${userId}`;
+
+export async function status(db, decider, capTokens, userId, now = Date.now()) {
   return {
     available: Boolean(decider),
-    consent: (await metaValue(db, CONSENT)) > 0,
+    consent: (await metaValue(db, consentKey(userId))) > 0,
     tokens_this_month: await metaValue(db, `decider_tokens:${month(now)}`),
     cap_tokens: capTokens,
   };
 }
 
-export async function setConsent(db, on, now = Date.now()) {
-  if (on) await db.run("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [CONSENT, now]);
-  else await db.run("DELETE FROM meta WHERE key = ?", [CONSENT]);
+export async function setConsent(db, userId, on, now = Date.now()) {
+  if (on) await db.run("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [consentKey(userId), now]);
+  else await db.run("DELETE FROM meta WHERE key = ?", [consentKey(userId)]);
 }
 
 /** The text the decision model reads: the payment and the person's recent merchant to category pairs. */
@@ -55,11 +57,12 @@ export function buildState({ merchant, amount }, examples) {
   return text;
 }
 
-async function recentExamples(db, names) {
+async function recentExamples(db, space, names) {
   const rows = await db.all(
     `SELECT merchant, category_id FROM transactions
-     WHERE deleted = 0 AND kind = 'expense' AND category_id IS NOT NULL AND category_auto != 1 AND merchant IS NOT NULL
+     WHERE space_id = ? AND deleted = 0 AND kind = 'expense' AND category_id IS NOT NULL AND category_auto != 1 AND merchant IS NOT NULL
      ORDER BY occurred_at DESC LIMIT 500`,
+    [space],
   );
   const seen = new Set();
   const out = [];
@@ -77,9 +80,11 @@ async function recentExamples(db, names) {
  * The one way to ask the hosted decider. Returns `{ category_id, confidence }` (category_id may
  * be null when there is nothing to choose from).
  */
-export async function categorize(db, decider, capTokens, body, now = Date.now()) {
+export async function categorize(db, decider, capTokens, who, body, now = Date.now()) {
   if (!decider) throw new DeciderError("not_available", 404);
-  if (!((await metaValue(db, CONSENT)) > 0)) throw new DeciderError("consent_required", 403);
+  if (!((await metaValue(db, consentKey(who.userId))) > 0)) throw new DeciderError("consent_required", 403);
+  const space = typeof body?.space_id === "string" ? body.space_id : who.personal;
+  if (!who.spaces.includes(space)) throw new ValidationError("invalid_space");
   const merchant = typeof body?.merchant === "string" ? body.merchant.trim().slice(0, 200) : "";
   const amountMinor = body?.amount_minor;
   const currency = body?.currency;
@@ -92,10 +97,10 @@ export async function categorize(db, decider, capTokens, body, now = Date.now())
   const callsKey = `decider_calls:${hour(now)}`;
   if ((await metaValue(db, callsKey)) >= CALLS_PER_HOUR) throw new DeciderError("rate_limited", 429);
 
-  const categories = await db.all("SELECT id, key, name FROM categories WHERE deleted = 0 ORDER BY id");
+  const categories = await db.all("SELECT id, key, name FROM categories WHERE space_id = ? AND deleted = 0 ORDER BY id", [space]);
   if (categories.length < 2) return { category_id: null, confidence: 0 };
   const names = new Map(categories.slice(0, 255).map((c) => [c.id, categoryName(c)]));
-  const state = buildState({ merchant, amount: formatMinor(amountMinor, currency) }, await recentExamples(db, names));
+  const state = buildState({ merchant, amount: formatMinor(amountMinor, currency) }, await recentExamples(db, space, names));
   const questions = {
     category: {
       type: "choice",

@@ -12,8 +12,11 @@ export function formatMinor(amountMinor, currency) {
   return `${s.slice(0, -d)}.${s.slice(-d)}`;
 }
 
-export async function exportJson(db) {
-  const live = (t) => db.all(`SELECT * FROM ${t} WHERE deleted = 0 ORDER BY ${t === "transactions" ? "occurred_at" : "id"}`);
+/** Everything in the given spaces (the person's own, docs/adr/0006-people-and-spaces.md). */
+export async function exportJson(db, spaces) {
+  if (!spaces?.length) throw new Error("no spaces");
+  const w = `space_id IN (${spaces.map(() => "?").join(",")})`;
+  const live = (t) => db.all(`SELECT * FROM ${t} WHERE deleted = 0 AND ${w} ORDER BY ${t === "transactions" ? "occurred_at" : "id"}`, spaces);
   const [accounts, categories, transactions] = await Promise.all([live("accounts"), live("categories"), live("transactions")]);
   const strip = ({ seq: _s, deleted: _d, ...r }) => r;
   return {
@@ -33,8 +36,8 @@ function csvCell(v) {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export async function exportCsv(db, lang = "es") {
-  const data = await exportJson(db);
+export async function exportCsv(db, spaces, lang = "es") {
+  const data = await exportJson(db, spaces);
   const cat = new Map(data.categories.map((c) => [c.id, c.name ?? lookup(lang, `categories.default.${c.key}`) ?? c.key]));
   const acc = new Map(data.accounts.map((a) => [a.id, a.name]));
   const cols = ["date", "kind", "amount", "currency", "category", "account", "merchant", "note", "card", "source", "needs_review", "category_auto", "id"];
@@ -63,11 +66,11 @@ export async function exportCsv(db, lang = "es") {
   return `\uFEFF${lines.join("\r\n")}\r\n`;
 }
 
-/** Deletes every movement, category and account (as tombstones, so iPhones sync the deletion). */
-export async function deleteAllData(db) {
+/** Deletes every movement, category and account of a space (as tombstones, so iPhones sync the deletion). */
+export async function deleteAllData(db, space) {
   const stmts = [];
   for (const t of ["transactions", "categories", "accounts"]) {
-    const ids = (await db.all(`SELECT id FROM ${t} WHERE deleted = 0`)).map((r) => r.id);
+    const ids = (await db.all(`SELECT id FROM ${t} WHERE deleted = 0 AND space_id = ?`, [space])).map((r) => r.id);
     for (const id of ids) {
       stmts.push({ sql: "UPDATE meta SET value = value + 1 WHERE key = 'seq'", params: [] });
       const blank =
@@ -77,8 +80,8 @@ export async function deleteAllData(db) {
             ? ", name = '', card = NULL"
             : ", key = NULL, name = NULL";
       stmts.push({
-        sql: `UPDATE ${t} SET deleted = 1, updated_at = ?, seq = (SELECT value FROM meta WHERE key = 'seq')${blank} WHERE id = ?`,
-        params: [Date.now(), id],
+        sql: `UPDATE ${t} SET deleted = 1, updated_at = ?, seq = (SELECT value FROM meta WHERE key = 'seq')${blank} WHERE space_id = ? AND id = ?`,
+        params: [Date.now(), space, id],
       });
     }
   }
