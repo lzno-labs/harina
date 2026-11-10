@@ -24,6 +24,7 @@ export default {
           maxUsers: env.HARINA_MAX_USERS,
           privacyUrl: env.HARINA_PRIVACY_URL,
           termsUrl: env.HARINA_TERMS_URL,
+          appleAppIds: env.HARINA_APPLE_APP_IDS,
         },
         decider: createDecider(env),
         assets: (req) => env.ASSETS.fetch(req),

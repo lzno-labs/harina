@@ -518,3 +518,17 @@
 "nudge.potText" = "Una bolsa de ahorro con meta te muestra cuánto llevas. Pasar plata ahí no cuenta como gasto.";
 "nudge.potCreate" = "Crear un ahorro";
 
+/* Account recovery: reinstall and passkeys (docs/adr/0007-passkeys-in-the-app.md) */
+"restore.title" = "Ya usabas Harina en este iPhone";
+"restore.text %@" = "Tu cuenta en %@ sigue guardada aquí. Continúa y tus datos vuelven solos.";
+"restore.continueAs %@" = "Continuar como %@";
+"restore.continue" = "Continuar con mi cuenta";
+"restore.fresh" = "Empezar de cero";
+"passkey.signIn" = "Entrar con llave de acceso";
+"passkey.signInHint" = "Si tu cuenta ya tiene llave de acceso, entras sin código.";
+"passkey.failed" = "No se pudo entrar con la llave de acceso.";
+"passkey.warning.title" = "Crea tu llave para no perder el acceso";
+"passkey.warning.text" = "Hoy solo este iPhone puede abrir tu cuenta. Con una llave de acceso entras otra vez si borras la app o cambias de teléfono.";
+"passkey.warning.textWeb" = "Hoy solo este iPhone puede abrir tu cuenta. Abre la web en la computadora con un código y crea ahí tu llave de acceso.";
+"passkey.create" = "Crear llave de acceso";
+"passkey.createFailed" = "No se pudo crear la llave de acceso.";

@@ -2,23 +2,26 @@
 import Foundation
 import Security
 
-/// The device token lives in the Keychain, on this device only. It stays readable after the
-/// first unlock so a payment captured with the phone locked can still sync.
+/// The device token and its server live in the Keychain, on this device only. They stay readable
+/// after the first unlock so a payment captured with the phone locked can still sync. iOS keeps
+/// Keychain items when the app is deleted, so a reinstall on the same iPhone can offer to continue
+/// with the same account (docs/adr/0007-passkeys-in-the-app.md).
 enum Keychain {
-    private static let service = "harina.device-token"
+    static let token = "harina.device-token"
+    static let server = "harina.server"
 
-    static func save(_ token: String) {
-        delete()
+    static func save(_ value: String, for service: String = token) {
+        delete(service)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-            kSecValueData as String: Data(token.utf8),
+            kSecValueData as String: Data(value.utf8),
         ]
         SecItemAdd(query as CFDictionary, nil)
     }
 
-    static func load() -> String? {
+    static func load(_ service: String = token) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -30,7 +33,7 @@ enum Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func delete() {
+    static func delete(_ service: String = token) {
         SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service] as CFDictionary)
     }
 }

@@ -116,7 +116,8 @@ export async function authenticationOptions(db, cfg) {
   return { challengeId: await saveChallenge(db, options.challenge, "login"), options };
 }
 
-export async function authenticationVerify(db, cfg, { challengeId, response }) {
+/** Verifies a passkey assertion and returns the person it belongs to. */
+async function verifyAssertion(db, cfg, { challengeId, response }) {
   const challenge = await takeChallenge(db, challengeId, "login");
   const cred = await db.first("SELECT * FROM credentials WHERE id = ?", [String(response?.id ?? "")]);
   if (!cred) throw new AuthError("passkey_failed", 400);
@@ -140,7 +141,22 @@ export async function authenticationVerify(db, cfg, { challengeId, response }) {
   }
   if (!verification.verified) throw new AuthError("passkey_failed", 400);
   await db.run("UPDATE credentials SET counter = ? WHERE id = ?", [verification.authenticationInfo.newCounter, cred.id]);
-  return createSession(db, cred.user_id);
+  return cred.user_id;
+}
+
+/** Passkey sign-in on the web: a session cookie. */
+export async function authenticationVerify(db, cfg, input) {
+  return createSession(db, await verifyAssertion(db, cfg, input));
+}
+
+/**
+ * Passkey sign-in from the iPhone app (docs/adr/0007-passkeys-in-the-app.md): the same assertion,
+ * traded for a device token instead of a session. Apple only lets the app use a passkey of a domain
+ * that lists it in apple-app-site-association, so the assertion is bound to our origin like on the web.
+ */
+export async function deviceLogin(db, cfg, { challengeId, response, deviceName }) {
+  const userId = await verifyAssertion(db, cfg, { challengeId, response });
+  return { ...(await newDevice(db, userId, deviceName)), userId };
 }
 
 export async function hasPasskey(db, userId) {

@@ -54,6 +54,7 @@ targets:
         HarinaDefaultServer: $(HARINA_DEFAULT_SERVER)
         HarinaPrivacyURL: $(HARINA_PRIVACY_URL)
         HarinaTermsURL: $(HARINA_TERMS_URL)
+        HarinaPasskeyDomain: $(HARINA_PASSKEY_DOMAIN)
 schemes:
   Harina:
     build:

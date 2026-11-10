@@ -67,6 +67,8 @@ export function normalizeConfig(cfg) {
     signup: cfg.signup === "open" ? "open" : "closed",
     privacyUrl: /^https:\/\//.test(cfg.privacyUrl ?? "") ? cfg.privacyUrl : null,
     termsUrl: /^https:\/\//.test(cfg.termsUrl ?? "") ? cfg.termsUrl : null,
+    // "TEAMID.bundle.id" of iPhone apps allowed to use this server's passkeys (ADR-0007).
+    appleAppIds: String(cfg.appleAppIds ?? "").split(",").map((s) => s.trim()).filter((s) => /^[A-Z0-9]{10}\.[A-Za-z0-9.-]+$/.test(s)),
     maxUsers: Number.isSafeInteger(Number(cfg.maxUsers)) && Number(cfg.maxUsers) > 0 ? Number(cfg.maxUsers) : DEFAULT_MAX_USERS,
     fetch: cfg.fetch ?? ((...a) => fetch(...a)),
   };
@@ -215,6 +217,12 @@ export function createApp({ db, config, assets, decider = null }) {
     }
     if (path === "/mcp") return handleMcp(req, { db, cfg });
 
+    // Lets the iPhone app use this domain's passkeys (docs/adr/0007-passkeys-in-the-app.md).
+    if (path === "/.well-known/apple-app-site-association" && method === "GET") {
+      if (!cfg.appleAppIds.length) return error("not_found", 404);
+      return json({ webcredentials: { apps: cfg.appleAppIds } }, 200, { "Cache-Control": "public, max-age=3600" });
+    }
+
     if (!path.startsWith("/api/")) {
       return assets ? assets(req) : error("not_found", 404);
     }
@@ -223,7 +231,7 @@ export function createApp({ db, config, assets, decider = null }) {
     if (!who && req.headers.has("Authorization")) return error("unauthorized", 401);
     if (method !== "GET" && who?.kind === "session" && !sameOrigin(req)) return error("bad_origin", 403);
     // The iPhone app has no Origin: linking and signing up from it are the only anonymous writes it makes.
-    const fromApp = path === "/api/devices/link" || path === "/api/auth/signup/device";
+    const fromApp = path === "/api/devices/link" || path === "/api/auth/signup/device" || path.startsWith("/api/auth/device/login/");
     if (method !== "GET" && !who && !sameOrigin(req) && !fromApp) return error("bad_origin", 403);
     const needSession = () => {
       if (who?.kind !== "session") throw new auth.AuthError("unauthorized", 401);
@@ -245,14 +253,22 @@ export function createApp({ db, config, assets, decider = null }) {
         });
       }
 
+      // Who the iPhone is signed in as, and whether the account can still be recovered with a passkey.
+      case "GET /api/me": {
+        needAny();
+        const user = await getUser(db, who.userId);
+        return json({ id: user.id, name: user.name, hasPasskey: await auth.hasPasskey(db, user.id) });
+      }
+
+      // A signed-in web session or iPhone adds a passkey; without either, it is a sign-up.
       case "POST /api/auth/register/options": {
         const body = await readJson(req);
-        const userId = who?.kind === "session" ? who.userId : null;
+        const userId = who?.userId ?? null;
         return json(await auth.registrationOptions(db, cfg, { userId, setupToken: body.setupToken, ip: clientIp(req) }));
       }
       case "POST /api/auth/register/verify": {
         const body = await readJson(req);
-        const userId = who?.kind === "session" ? who.userId : null;
+        const userId = who?.userId ?? null;
         const r = await auth.registrationVerify(db, cfg, { ...body, userId });
         if (!r.session) return json({ ok: true });
         return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, r.session.token, auth.SESSION_TTL_MS) });
@@ -262,6 +278,13 @@ export function createApp({ db, config, assets, decider = null }) {
       case "POST /api/auth/login/verify": {
         const s = await auth.authenticationVerify(db, cfg, await readJson(req));
         return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, s.token, auth.SESSION_TTL_MS) });
+      }
+      // Passkey sign-in from the iPhone app: a device token instead of a cookie.
+      case "POST /api/auth/device/login/options":
+        return json(await auth.authenticationOptions(db, cfg));
+      case "POST /api/auth/device/login/verify": {
+        const body = await readJson(req);
+        return json(await auth.deviceLogin(db, cfg, body));
       }
       case "POST /api/auth/logout":
         if (who?.kind === "session") await auth.endSession(db, who.token);

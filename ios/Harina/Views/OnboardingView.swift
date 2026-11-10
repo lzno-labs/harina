@@ -24,6 +24,9 @@ struct OnboardingView: View {
     @State private var bills = Set<String>()
     @State private var billDays: [String: Int] = [:]
     @AppStorage("appLock") private var appLock = false
+    @Environment(\.authorizationController) private var authController
+    /// An account left in the Keychain by an earlier install of the app on this iPhone (ADR-0007).
+    @State private var restorable: SyncService.Restorable?
 
     /// Where the person keeps their data: only on this iPhone, or also on a server (docs/design/onboarding.md).
     private enum Storage { case local, server }
@@ -52,6 +55,7 @@ struct OnboardingView: View {
         }
         .background(Theme.background)
         .onAppear { CategoryStore.ensureDefaults(context) }
+        .task { restorable = await sync.restorable() }
         .sheet(isPresented: $showLinkForm) { NavigationStack { LinkView() }.environmentObject(sync) }
     }
 
@@ -75,9 +79,29 @@ struct OnboardingView: View {
                     feature("lock.shield.fill", [Color(hex: 0x8B5CF6), Color(hex: 0x6366F1)], "onboarding.welcome.f3")
                 }
                 .padding(.top, 8)
+                if let restorable {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("restore.title", systemImage: "checkmark.icloud.fill").font(.headline)
+                        Text("restore.text \(restorable.server.host() ?? restorable.server.absoluteString)")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .card()
+                }
             }
         } actions: {
-            Button("onboarding.start", action: next).buttonStyle(BrandButtonStyle())
+            if let restorable {
+                Button {
+                    sync.restore(restorable)
+                    Task { await sync.sync() }
+                    done()
+                } label: {
+                    if let name = restorable.name, !name.isEmpty { Text("restore.continueAs \(name)") } else { Text("restore.continue") }
+                }
+                .buttonStyle(BrandButtonStyle())
+                Button("restore.fresh", action: next).font(.subheadline.weight(.semibold))
+            } else {
+                Button("onboarding.start", action: next).buttonStyle(BrandButtonStyle())
+            }
         }
     }
 
@@ -234,6 +258,14 @@ struct OnboardingView: View {
                         LegalLine()
                         if let signupError { Text(signupError).font(.footnote).foregroundStyle(.red) }
                         Text("onboarding.link.haveAccount").font(.subheadline.weight(.semibold))
+                        if let server = LinkView.defaultServer, Passkeys.available(for: server) {
+                            Button { Task { await passkeySignIn(server) } } label: {
+                                Label("passkey.signIn", systemImage: "person.badge.key.fill").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .disabled(signingUp)
+                        }
                         VStack(alignment: .leading, spacing: 12) {
                             if let host = LinkView.defaultServer?.host() {
                                 Label("onboarding.link.qr1.host \(host)", systemImage: "desktopcomputer")
@@ -290,6 +322,18 @@ struct OnboardingView: View {
             signupError = "signup.closed"
         } catch {
             signupError = "link.failed"
+        }
+    }
+
+    /// Signs in with a passkey of an existing account, for example after reinstalling (ADR-0007).
+    private func passkeySignIn(_ server: URL) async {
+        signingUp = true
+        signupError = nil
+        defer { signingUp = false }
+        do {
+            try await Passkeys.signIn(server: server, controller: authController)
+        } catch {
+            if !Passkeys.cancelled(error) { signupError = "passkey.failed" }
         }
     }
 

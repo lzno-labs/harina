@@ -17,6 +17,20 @@ final class SyncService: ObservableObject {
     @Published private(set) var lastError: SyncError?
     /// The person's spaces (personal first), refreshed on every sync.
     @Published private(set) var spaces: [SpaceInfo] = Spaces.list
+    /// Who this iPhone is signed in as, and whether the account has a passkey to recover it.
+    @Published private(set) var me: Me?
+
+    struct Me: Decodable, Sendable {
+        let id: String
+        let name: String?
+        let hasPasskey: Bool
+    }
+
+    /// An account this iPhone was linked to before the app was deleted (its token survives in the Keychain).
+    struct Restorable: Sendable {
+        let server: URL
+        let name: String?
+    }
 
     var isLinked: Bool { AppSettings.serverURL != nil && Keychain.load() != nil }
 
@@ -66,6 +80,7 @@ final class SyncService: ObservableObject {
     /// Starts syncing with an account: the whole local history goes up, then everything comes down.
     private func adopt(server: URL, token: String) {
         Keychain.save(token)
+        Keychain.save(server.absoluteString, for: Keychain.server)
         AppSettings.serverURL = server
         AppSettings.lastSeq = 0
         for m in (try? context.fetch(FetchDescriptor<Movement>())) ?? [] { m.dirty = true }
@@ -79,9 +94,105 @@ final class SyncService: ObservableObject {
 
     func unlink() {
         Keychain.delete()
+        Keychain.delete(Keychain.server)
         AppSettings.serverURL = nil
         AppSettings.lastSeq = 0
+        me = nil
         adoptSpaces([])
+    }
+
+    // MARK: after a reinstall (docs/adr/0007-passkeys-in-the-app.md)
+
+    /// The account left in the Keychain by an earlier install, if its token still works.
+    func restorable() async -> Restorable? {
+        guard !isLinked, let token = Keychain.load(), let text = Keychain.load(Keychain.server),
+              let server = URL(string: text), server.host() != nil else { return nil }
+        var req = URLRequest(url: server.appending(path: "api/me"))
+        req.timeoutInterval = 10
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        guard let (data, res) = try? await session.data(for: req), (res as? HTTPURLResponse)?.statusCode == 200,
+              let me = try? JSONDecoder().decode(Me.self, from: data) else { return nil }
+        return Restorable(server: server, name: me.name)
+    }
+
+    /// Continues with the account found by `restorable()`, without any code.
+    func restore(_ account: Restorable) {
+        guard let token = Keychain.load() else { return }
+        adopt(server: account.server, token: token)
+    }
+
+    /// Who this iPhone is signed in as; nil while offline.
+    func refreshMe() async {
+        guard isLinked, let data = try? await request("/api/me", timeout: 10) else { return }
+        me = try? JSONDecoder().decode(Me.self, from: data)
+    }
+
+    // MARK: passkeys in the app (docs/adr/0007-passkeys-in-the-app.md)
+
+    struct PasskeyChallenge: Sendable {
+        let id: String
+        let challenge: Data
+        let rpID: String
+        /// Registration only: the account's user handle and a label for the passkey.
+        let userID: Data?
+        let userName: String?
+    }
+
+    private struct OptionsResponse: Decodable {
+        struct Options: Decodable {
+            struct RP: Decodable { let id: String }
+            struct User: Decodable { let id: String; let name: String }
+            let challenge: String
+            let rpId: String?
+            let rp: RP?
+            let user: User?
+        }
+        let challengeId: String
+        let options: Options
+    }
+
+    private func challenge(from data: Data) throws -> PasskeyChallenge {
+        let r = try JSONDecoder().decode(OptionsResponse.self, from: data)
+        guard let challenge = Data(base64URL: r.options.challenge), let rpID = r.options.rpId ?? r.options.rp?.id else {
+            throw SyncError.server(0)
+        }
+        return PasskeyChallenge(id: r.challengeId, challenge: challenge, rpID: rpID,
+                                userID: r.options.user.flatMap { Data(base64URL: $0.id) }, userName: r.options.user?.name)
+    }
+
+    /// Anonymous call to a server this iPhone is not linked to yet.
+    private func post(_ server: URL, _ path: String, _ body: [String: Any]) async throws -> Data {
+        var req = URLRequest(url: server.appending(path: path))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await session.data(for: req)
+        let status = (res as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 400 { throw SyncError.unauthorized }
+        guard status == 200 else { throw SyncError.server(status) }
+        return data
+    }
+
+    func passkeySignInChallenge(server: URL) async throws -> PasskeyChallenge {
+        try challenge(from: try await post(server, "api/auth/device/login/options", [:]))
+    }
+
+    /// Trades a passkey assertion for a device token of the same person, then syncs everything.
+    func signIn(server: URL, challengeId: String, credential: [String: Any], deviceName: String) async throws {
+        if isLinked { unlink() }
+        let data = try await post(server, "api/auth/device/login/verify",
+                                  ["challengeId": challengeId, "response": credential, "deviceName": deviceName])
+        adopt(server: server, token: try JSONDecoder().decode(LinkResponse.self, from: data).token)
+    }
+
+    func passkeyRegistrationChallenge() async throws -> PasskeyChallenge {
+        try challenge(from: try await request("/api/auth/register/options", method: "POST", body: Data("{}".utf8), timeout: 15))
+    }
+
+    func registerPasskey(challengeId: String, credential: [String: Any]) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["challengeId": challengeId, "response": credential])
+        _ = try await request("/api/auth/register/verify", method: "POST", body: body, timeout: 15)
+        await refreshMe()
     }
 
     // MARK: sync
@@ -93,6 +204,7 @@ final class SyncService: ObservableObject {
         defer { syncing = false }
         do {
             try await refreshSpaces()
+            await refreshMe()
             try await pushDirty()
             try await pullAll()
             await Reminders.reschedule()

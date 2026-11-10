@@ -33,7 +33,9 @@ jobs:
 
   ios-logic:
     # HarinaKit is Foundation only, so it builds and tests on Linux for free on every PR.
+    # The runner image no longer ships Swift, so the job runs in the official Swift image.
     runs-on: ubuntu-latest
+    container: swift:6.0.3-jammy
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
