@@ -3,6 +3,7 @@ import * as auth from "./auth.js";
 import { categorize, DEFAULT_CAP_TOKENS, DeciderError, setConsent, status as deciderStatus } from "./categorize.js";
 import { deleteAllData, exportCsv, exportJson } from "./export.js";
 import { DEFAULT_MAX_USERS, PeopleError, deleteUser, getUser, spacesOf } from "./people.js";
+import * as spaces from "./spaces.js";
 import { LOCALES } from "./locales.js";
 import { pull, push, ValidationError } from "./sync.js";
 import * as oauth from "./oauth.js";
@@ -291,13 +292,33 @@ export function createApp({ db, config, assets, decider = null }) {
         needAny();
         const since = Number(url.searchParams.get("since") ?? 0);
         if (!Number.isSafeInteger(since) || since < 0) return error("invalid_since", 400);
-        return json(await pull(db, since, (await scope(who.userId)).spaces));
+        // The spaces travel with every pull so devices notice a joined or removed space.
+        return json({ ...(await pull(db, since, (await scope(who.userId)).spaces)), spaces: await spaces.listSpaces(db, who.userId) });
       }
       case "POST /api/sync": {
         needAny();
         const body = await readJson(req);
         return json(await push(db, body.changes, await scope(who.userId)));
       }
+
+      // ----- Shared spaces (docs/design/people-and-spaces.md, phase 2) -----
+      case "GET /api/spaces":
+        needAny();
+        return json({ spaces: await spaces.listSpaces(db, who.userId) });
+      case "POST /api/spaces": {
+        needAny();
+        const id = await spaces.createSpace(db, who.userId, await readJson(req));
+        return json({ id, spaces: await spaces.listSpaces(db, who.userId) });
+      }
+      case "POST /api/invites/accept": {
+        needAny();
+        const space = await spaces.acceptInvite(db, who.userId, await readJson(req));
+        return json({ space, spaces: await spaces.listSpaces(db, who.userId) });
+      }
+      case "PATCH /api/me":
+        needAny();
+        await spaces.renameMe(db, who.userId, await readJson(req));
+        return json({ ok: true });
 
       // ----- Hosted category decider (docs/design/hosted-decision-model.md) -----
       case "GET /api/decider":
@@ -379,6 +400,19 @@ export function createApp({ db, config, assets, decider = null }) {
       needSession();
       await oauth.revokeGrant(db, who.userId, conn[1]);
       return json({ ok: true });
+    }
+
+    const sp = path.match(/^\/api\/spaces\/([A-Za-z0-9_-]{1,64})(\/invites|\/leave|\/members\/([A-Za-z0-9_-]{1,64}))?$/);
+    if (sp) {
+      needAny();
+      const [, id, sub, member] = sp;
+      if (!sub && method === "PATCH") await spaces.renameSpace(db, who.userId, id, await readJson(req));
+      else if (!sub && method === "DELETE") await spaces.deleteSpace(db, who.userId, id);
+      else if (sub === "/invites" && method === "POST") return json(await spaces.createInvite(db, who.userId, id));
+      else if (sub === "/leave" && method === "POST") await spaces.leaveSpace(db, who.userId, id);
+      else if (member && method === "DELETE") await spaces.removeMember(db, who.userId, id, member);
+      else return error("not_found", 404);
+      return json({ spaces: await spaces.listSpaces(db, who.userId) });
     }
 
     const dev = path.match(/^\/api\/devices\/([A-Za-z0-9_-]{1,64})$/);

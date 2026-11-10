@@ -21,7 +21,8 @@ export async function exportJson(db, spaces) {
   const strip = ({ seq: _s, deleted: _d, ...r }) => r;
   return {
     format: "harina-export",
-    version: 1,
+    version: 2,
+    spaces: await db.all(`SELECT id, kind, name FROM spaces WHERE id IN (${spaces.map(() => "?").join(",")})`, spaces),
     exported_at: new Date().toISOString(),
     accounts: accounts.map(strip),
     categories: categories.map(strip),
