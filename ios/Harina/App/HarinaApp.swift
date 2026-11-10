@@ -37,6 +37,12 @@ struct HarinaApp: App {
             .sheet(item: $pendingLink) { LinkConfirmView(request: $0).environmentObject(sync) }
             .alert("deeplink.invalid", isPresented: $badLink) {}
             .onAppear {
+                // Accounts and spaces (ADR-0006) started the server from scratch: the old link no longer
+                // works, so it is dropped once and the person links or signs up again.
+                if !AppSettings.defaults.bool(forKey: "spacesReset") {
+                    SyncService.shared.unlink()
+                    AppSettings.defaults.set(true, forKey: "spacesReset")
+                }
                 network.onReconnect = { Task { await SyncService.shared.sync() } }
                 network.start()
             }

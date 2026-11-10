@@ -24,8 +24,13 @@ final class Movement {
     var updatedAt: Int64
     var deleted: Bool
     var dirty: Bool
+    /// Space of the movement; "" is the person's personal space (docs/design/people-and-spaces.md).
+    var space: String = ""
+    /// Who added it, in a shared space (person id from the server).
+    var createdBy: String?
 
     init(_ dto: TransactionDTO, dirty: Bool) {
+        space = Spaces.local(dto.space_id); createdBy = dto.created_by
         id = dto.id; kind = dto.kind; amountMinor = dto.amount_minor; currency = dto.currency
         categoryId = dto.category_id; accountId = dto.account_id; merchant = dto.merchant; note = dto.note
         card = dto.card; source = dto.source; rawAmount = dto.raw_amount; needsReview = (dto.needs_review ?? 0) != 0
@@ -35,6 +40,7 @@ final class Movement {
     }
 
     func update(from dto: TransactionDTO) {
+        space = Spaces.local(dto.space_id); createdBy = dto.created_by ?? createdBy
         kind = dto.kind; amountMinor = dto.amount_minor; currency = dto.currency; categoryId = dto.category_id
         accountId = dto.account_id; merchant = dto.merchant; note = dto.note; card = dto.card; source = dto.source
         rawAmount = dto.raw_amount; needsReview = (dto.needs_review ?? 0) != 0
@@ -48,7 +54,7 @@ final class Movement {
                        account_id: accountId, merchant: merchant, note: note, card: card, source: source,
                        raw_amount: rawAmount, needs_review: needsReview ? 1 : 0, category_auto: categoryAuto,
                        occurred_at: ISODate.string(occurredAt),
-                       updated_at: updatedAt, deleted: deleted ? 1 : 0)
+                       updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space), created_by: createdBy)
     }
 
     /// Marks a local edit: new clock value, waiting to be pushed.
@@ -68,7 +74,10 @@ final class Movement {
 
 @Model
 final class CategoryItem {
-    @Attribute(.unique) var id: String
+    /// "space:id": suggested categories keep the same id in every space.
+    @Attribute(.unique) var uid: String
+    var id: String
+    var space: String = ""
     var key: String?
     var name: String?
     /// Emoji and #rrggbb color chosen by the person; nil means the suggestion's or a generated look.
@@ -79,6 +88,7 @@ final class CategoryItem {
     var dirty: Bool
 
     init(_ dto: CategoryDTO, dirty: Bool) {
+        space = Spaces.local(dto.space_id); uid = Spaces.uid(Spaces.local(dto.space_id), dto.id)
         id = dto.id; key = dto.key; name = dto.name; icon = dto.icon; color = dto.color; updatedAt = dto.updated_at
         deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
     }
@@ -89,7 +99,8 @@ final class CategoryItem {
     }
 
     var dto: CategoryDTO {
-        CategoryDTO(id: id, key: key, name: name, icon: icon, color: color, updated_at: updatedAt, deleted: deleted ? 1 : 0)
+        CategoryDTO(id: id, key: key, name: name, icon: icon, color: color, updated_at: updatedAt, deleted: deleted ? 1 : 0,
+                    space_id: Spaces.wire(space))
     }
 
     /// Marks a local edit: new clock value, waiting to be pushed.
@@ -113,24 +124,31 @@ final class AccountItem {
     var updatedAt: Int64
     var deleted: Bool
     var dirty: Bool
+    /// The card's space: its Apple Pay payments land there.
+    var space: String = ""
 
     init(_ dto: AccountDTO, dirty: Bool) {
+        space = Spaces.local(dto.space_id)
         id = dto.id; name = dto.name; card = dto.card; updatedAt = dto.updated_at
         deleted = (dto.deleted ?? 0) != 0; self.dirty = dirty
     }
 
     func update(from dto: AccountDTO) {
+        space = Spaces.local(dto.space_id)
         name = dto.name; card = dto.card; updatedAt = dto.updated_at; deleted = (dto.deleted ?? 0) != 0; dirty = false
     }
 
-    var dto: AccountDTO { AccountDTO(id: id, name: name, card: card, updated_at: updatedAt, deleted: deleted ? 1 : 0) }
+    var dto: AccountDTO { AccountDTO(id: id, name: name, card: card, updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space)) }
 }
 
 enum Store {
     /// One container for the app and its App Intents (they run in the app's process).
     static let container: ModelContainer = {
         do {
-            return try ModelContainer(for: Movement.self, CategoryItem.self, AccountItem.self)
+            // Spaces changed the category key (ADR-0006): a new store file; test data was discarded.
+            let url = URL.applicationSupportDirectory.appending(path: "harina-spaces.store")
+            return try ModelContainer(for: Movement.self, CategoryItem.self, AccountItem.self,
+                                      configurations: ModelConfiguration(url: url))
         } catch {
             fatalError("SwiftData store failed to open: \(error)")
         }
@@ -188,3 +206,47 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: "offlineCaptureId") }
     }
 }
+
+/// Spaces on the iPhone (docs/design/people-and-spaces.md). Locally "" is the personal space, so data
+/// captured before linking needs no rewrite; shared spaces use their server id.
+enum Spaces {
+    static var list: [SpaceInfo] {
+        get { (AppSettings.defaults.data(forKey: "spaces")).flatMap { try? JSONDecoder().decode([SpaceInfo].self, from: $0) } ?? [] }
+        set { AppSettings.defaults.set(try? JSONEncoder().encode(newValue), forKey: "spaces") }
+    }
+    static var personalId: String? { list.first(where: \.isPersonal)?.id }
+
+    /// Server space id to local ("" for personal or none).
+    static func local(_ wire: String?) -> String {
+        guard let wire, wire != personalId else { return "" }
+        return wire
+    }
+    /// Local space to the server's (nil lets the server use the personal space).
+    static func wire(_ local: String) -> String? { local.isEmpty ? nil : local }
+    static func uid(_ space: String, _ id: String) -> String { "\(space):\(id)" }
+
+    static var shared: [SpaceInfo] { list.filter { !$0.isPersonal } }
+    /// The space the person is looking at ("" personal); a space they left falls back to personal.
+    static var current: String { valid(AppSettings.defaults.string(forKey: "space") ?? "") }
+    static func valid(_ space: String) -> String { space.isEmpty || list.contains { $0.id == space } ? space : "" }
+    static func info(_ local: String) -> SpaceInfo? { local.isEmpty ? list.first(where: \.isPersonal) : list.first { $0.id == local } }
+    static func name(_ local: String) -> String {
+        local.isEmpty ? L("spaces.personal") : (info(local)?.name ?? L("spaces.personal"))
+    }
+    /// "Ana" for a movement someone else added in a shared space.
+    static func addedBy(_ m: Movement) -> String? {
+        guard !m.space.isEmpty, let by = m.createdBy, let member = info(m.space)?.members.first(where: { $0.id == by }), !member.me else { return nil }
+        return member.name ?? L("spaces.someone")
+    }
+}
+
+extension Array where Element == Movement {
+    func inSpace(_ space: String) -> [Movement] { filter { $0.space == space } }
+}
+extension Array where Element == CategoryItem {
+    func inSpace(_ space: String) -> [CategoryItem] { filter { $0.space == space } }
+}
+extension Array where Element == AccountItem {
+    func inSpace(_ space: String) -> [AccountItem] { filter { $0.space == space } }
+}
+

@@ -3,6 +3,7 @@ import * as auth from "./auth.js";
 import { categorize, DEFAULT_CAP_TOKENS, DeciderError, setConsent, status as deciderStatus } from "./categorize.js";
 import { deleteAllData, exportCsv, exportJson } from "./export.js";
 import { DEFAULT_MAX_USERS, PeopleError, deleteUser, getUser, spacesOf } from "./people.js";
+import * as spaces from "./spaces.js";
 import { LOCALES } from "./locales.js";
 import { pull, push, ValidationError } from "./sync.js";
 import * as oauth from "./oauth.js";
@@ -47,6 +48,8 @@ const error = (code, status) => json({ error: code }, status);
  * @param {string} [cfg.timeZone]    HARINA_TZ for month boundaries in assistant answers (default America/Costa_Rica)
  * @param {string} [cfg.signup]      HARINA_SIGNUP: "open" lets anyone sign up; anything else keeps it closed (first person only)
  * @param {string|number} [cfg.maxUsers]  HARINA_MAX_USERS: cap on people when sign-up is open (default 1000)
+ * @param {string} [cfg.privacyUrl]  HARINA_PRIVACY_URL: privacy notice shown when creating an account
+ * @param {string} [cfg.termsUrl]    HARINA_TERMS_URL: terms of use shown when creating an account
  * @param {Function} [cfg.fetch]     fetch used for CIMD documents (tests inject one)
  */
 export function normalizeConfig(cfg) {
@@ -62,6 +65,8 @@ export function normalizeConfig(cfg) {
     timeZone: cfg.timeZone || "America/Costa_Rica",
     defaultCurrency: cfg.defaultCurrency || "CRC",
     signup: cfg.signup === "open" ? "open" : "closed",
+    privacyUrl: /^https:\/\//.test(cfg.privacyUrl ?? "") ? cfg.privacyUrl : null,
+    termsUrl: /^https:\/\//.test(cfg.termsUrl ?? "") ? cfg.termsUrl : null,
     maxUsers: Number.isSafeInteger(Number(cfg.maxUsers)) && Number(cfg.maxUsers) > 0 ? Number(cfg.maxUsers) : DEFAULT_MAX_USERS,
     fetch: cfg.fetch ?? ((...a) => fetch(...a)),
   };
@@ -235,6 +240,7 @@ export function createApp({ db, config, assets, decider = null }) {
           user: user ? { id: user.id, name: user.name, hasPasskey: await auth.hasPasskey(db, user.id) } : null,
           setupNeeded: await auth.setupNeeded(db),
           signup: cfg.signup,
+          legal: { privacy: cfg.privacyUrl, terms: cfg.termsUrl },
           origin: cfg.origin,
         });
       }
@@ -291,13 +297,33 @@ export function createApp({ db, config, assets, decider = null }) {
         needAny();
         const since = Number(url.searchParams.get("since") ?? 0);
         if (!Number.isSafeInteger(since) || since < 0) return error("invalid_since", 400);
-        return json(await pull(db, since, (await scope(who.userId)).spaces));
+        // The spaces travel with every pull so devices notice a joined or removed space.
+        return json({ ...(await pull(db, since, (await scope(who.userId)).spaces)), spaces: await spaces.listSpaces(db, who.userId) });
       }
       case "POST /api/sync": {
         needAny();
         const body = await readJson(req);
         return json(await push(db, body.changes, await scope(who.userId)));
       }
+
+      // ----- Shared spaces (docs/design/people-and-spaces.md, phase 2) -----
+      case "GET /api/spaces":
+        needAny();
+        return json({ spaces: await spaces.listSpaces(db, who.userId) });
+      case "POST /api/spaces": {
+        needAny();
+        const id = await spaces.createSpace(db, who.userId, await readJson(req));
+        return json({ id, spaces: await spaces.listSpaces(db, who.userId) });
+      }
+      case "POST /api/invites/accept": {
+        needAny();
+        const space = await spaces.acceptInvite(db, who.userId, await readJson(req));
+        return json({ space, spaces: await spaces.listSpaces(db, who.userId) });
+      }
+      case "PATCH /api/me":
+        needAny();
+        await spaces.renameMe(db, who.userId, await readJson(req));
+        return json({ ok: true });
 
       // ----- Hosted category decider (docs/design/hosted-decision-model.md) -----
       case "GET /api/decider":
@@ -379,6 +405,19 @@ export function createApp({ db, config, assets, decider = null }) {
       needSession();
       await oauth.revokeGrant(db, who.userId, conn[1]);
       return json({ ok: true });
+    }
+
+    const sp = path.match(/^\/api\/spaces\/([A-Za-z0-9_-]{1,64})(\/invites|\/leave|\/members\/([A-Za-z0-9_-]{1,64}))?$/);
+    if (sp) {
+      needAny();
+      const [, id, sub, member] = sp;
+      if (!sub && method === "PATCH") await spaces.renameSpace(db, who.userId, id, await readJson(req));
+      else if (!sub && method === "DELETE") await spaces.deleteSpace(db, who.userId, id);
+      else if (sub === "/invites" && method === "POST") return json(await spaces.createInvite(db, who.userId, id));
+      else if (sub === "/leave" && method === "POST") await spaces.leaveSpace(db, who.userId, id);
+      else if (member && method === "DELETE") await spaces.removeMember(db, who.userId, id, member);
+      else return error("not_found", 404);
+      return json({ spaces: await spaces.listSpaces(db, who.userId) });
     }
 
     const dev = path.match(/^\/api\/devices\/([A-Za-z0-9_-]{1,64})$/);

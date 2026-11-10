@@ -118,6 +118,10 @@ function upsertStatement(entity, row) {
   };
 }
 
+async function isMember(db, space, userId) {
+  return Boolean(await db.first("SELECT 1 FROM members WHERE space_id = ? AND user_id = ?", [space, userId]));
+}
+
 /** The spaces a request may touch (docs/adr/0006-people-and-spaces.md). */
 function inSpaces(spaces) {
   if (!spaces?.length) throw new ValidationError("no_space");
@@ -143,7 +147,9 @@ export async function push(db, changes, who, now = Date.now()) {
     for (const rec of list) {
       const space = rec?.space_id ?? who.personal;
       if (typeof space !== "string" || !who.spaces.includes(space)) throw new ValidationError("invalid_space", `${entity}.space_id`);
-      rows.push([entity, { ...validateRecord(entity, rec, now), space_id: space, created_by: who.userId }]);
+      // Moving a movement to another space keeps who added it, if that person is in the space too.
+      const by = typeof rec.created_by === "string" && rec.created_by !== who.userId && (await isMember(db, space, rec.created_by)) ? rec.created_by : who.userId;
+      rows.push([entity, { ...validateRecord(entity, rec, now), space_id: space, created_by: by }]);
     }
   }
   if (rows.length > MAX_PUSH) throw new ValidationError("too_many_records");

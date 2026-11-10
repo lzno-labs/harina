@@ -5,7 +5,9 @@ import SwiftData
 import SwiftUI
 
 struct RootView: View {
-    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
+    @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
     @State private var tab = 0
     @State private var celebrate: Movement?
     @AppStorage("firstCaptureSeen") private var firstCaptureSeen = false
@@ -76,8 +78,12 @@ struct LockedView: View {
 struct MonthView: View {
     @Binding var tab: Int
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt, order: .reverse)
-    private var movements: [Movement]
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
     @EnvironmentObject private var sync: SyncService
     @State private var month = Calendar.current.dateInterval(of: .month, for: Date())!
     @State private var currency: String?
@@ -135,6 +141,7 @@ struct MonthView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Greeting.key).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                 Text("month.title").font(.largeTitle.weight(.heavy)).tracking(-0.8)
+                SpacePicker()
             }
             Spacer()
             HStack(spacing: 2) {
@@ -445,7 +452,7 @@ struct MovementRow: View {
                     if movement.categoryAuto == 1 {
                         Image(systemName: "sparkles").foregroundStyle(Color(hex: 0xFF4F6D)).font(.caption2).accessibilityLabel("auto.mark")
                     }
-                    Text(category?.displayName ?? String(localized: "category.none")).lineLimit(1)
+                    Text(verbatim: [category?.displayName ?? String(localized: "category.none"), Spaces.addedBy(movement)].compactMap { $0 }.joined(separator: " · ")).lineLimit(1)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -570,8 +577,12 @@ enum MovementActions {
 
 struct MovementsView: View {
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt, order: .reverse)
-    private var movements: [Movement]
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
     @State private var query = ""
     @State private var filter = "all"
     @State private var editing: Movement?
@@ -638,6 +649,7 @@ struct MovementsView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.background)
         .navigationTitle("movements.title")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { SpacePicker() } }
         .searchable(text: $query, prompt: Text("movements.search"))
         .movementEditing(editing: $editing, deleting: $deleting)
     }
@@ -648,8 +660,12 @@ struct MovementsView: View {
 struct ReviewView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt, order: .reverse)
-    private var movements: [Movement]
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    private var allMovements: [Movement]
+    @AppStorage("space") private var spaceM = ""
+    private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
     @EnvironmentObject private var sync: SyncService
 
     var body: some View {
@@ -702,6 +718,7 @@ struct ReviewView: View {
         }
         .background(Theme.background)
         .navigationTitle("review.title")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { SpacePicker() } }
         .sensoryFeedback(.success, trigger: pending.count)
     }
 

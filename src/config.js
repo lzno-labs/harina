@@ -16,6 +16,8 @@ export function configFromEnv(env = process.env) {
     aiCapTokens: env.HARINA_AI_CAP_TOKENS,
     signup: env.HARINA_SIGNUP || "closed",
     maxUsers: env.HARINA_MAX_USERS,
+    privacyUrl: env.HARINA_PRIVACY_URL,
+    termsUrl: env.HARINA_TERMS_URL,
   };
 }
 

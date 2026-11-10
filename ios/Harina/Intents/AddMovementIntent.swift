@@ -37,9 +37,10 @@ struct AddMovementIntent: AppIntent {
         var dto = TransactionDTO(
             id: UUID().uuidString, kind: kind.rawValue, amount_minor: minor, currency: cur,
             category_id: category?.id, merchant: String(concept.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)),
-            source: "manual", occurred_at: ISODate.string(Date()), updated_at: SyncRules.now()
+            source: "manual", occurred_at: ISODate.string(Date()), updated_at: SyncRules.now(),
+            space_id: Spaces.wire(Spaces.current)
         )
-        let brain = Smart.brain(context)
+        let brain = Smart.brain(context, space: Spaces.current)
         // Without a spoken category, the decision model categorizes only when it is sure.
         if dto.category_id == nil, kind == .expense, AppSettings.autoCategory {
             let d = await Smart.categorize(dto, brain: brain)
@@ -92,7 +93,8 @@ struct CategoryEntity: AppEntity {
 struct CategoryQuery: EntityStringQuery {
     @MainActor
     private func all() -> [CategoryEntity] {
-        let items = (try? Store.container.mainContext.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.deleted == false }))) ?? []
+        let space = Spaces.current
+        let items = (try? Store.container.mainContext.fetch(FetchDescriptor<CategoryItem>(predicate: #Predicate { $0.deleted == false && $0.space == space }))) ?? []
         return items.map { CategoryEntity(id: $0.id, name: $0.displayName, glyph: Looks.of($0).glyph) }
             .sorted { $0.name < $1.name }
     }

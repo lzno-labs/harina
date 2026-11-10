@@ -7,8 +7,12 @@ import UIKit
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var sync: SyncService
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
-    @Query(filter: #Predicate<AccountItem> { $0.deleted == false }) private var accounts: [AccountItem]
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
+    @Query(filter: #Predicate<AccountItem> { $0.deleted == false }) private var allAccounts: [AccountItem]
+    @AppStorage("space") private var spaceA = ""
+    private var accounts: [AccountItem] { allAccounts.inSpace(Spaces.valid(spaceA)) }
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt) private var movements: [Movement]
     @AppStorage("defaultCurrency") private var defaultCurrency = "CRC"
     @AppStorage("appLock") private var appLock = true
@@ -59,6 +63,22 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section {
+                NavigationLink {
+                    SpacesView()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("spaces.title")
+                            Text(sync.isLinked ? "spaces.subtitle" : "spaces.needsServer").font(.caption).foregroundStyle(.secondary)
+                        }
+                    } icon: { Image(systemName: "person.2.fill") }
+                }
+                .disabled(!sync.isLinked)
+                if sync.spaces.count > 1 {
+                    LabeledContent("spaces.current") { SpacePicker() }
+                }
+            }
             AutoCategorySection()
             Section {
                 ForEach(accounts) { a in
@@ -67,6 +87,17 @@ struct SettingsView: View {
                         VStack(alignment: .leading) {
                             Text(a.name)
                             if let card = a.card { Text(card).font(.caption).foregroundStyle(.secondary) }
+                        }
+                        if sync.spaces.count > 1 {
+                            Spacer()
+                            // A card belongs to a space: its Apple Pay payments land there.
+                            Menu {
+                                ForEach(sync.spaces.filter { Spaces.local($0.id) != a.space }) { sp in
+                                    Button(Spaces.name(Spaces.local(sp.id))) { Task { try? await sync.move(a, to: Spaces.local(sp.id)) } }
+                                }
+                            } label: {
+                                Label(Spaces.name(a.space), systemImage: "arrow.left.arrow.right").font(.caption.weight(.semibold))
+                            }
                         }
                     }
                 }
@@ -81,7 +112,8 @@ struct SettingsView: View {
                     guard !name.isEmpty else { return }
                     let card = newCard.trimmingCharacters(in: .whitespaces)
                     context.insert(AccountItem(AccountDTO(id: UUID().uuidString, name: String(name.prefix(100)),
-                                                          card: card.isEmpty ? nil : String(card.prefix(100)), updated_at: SyncRules.now()), dirty: true))
+                                                          card: card.isEmpty ? nil : String(card.prefix(100)), updated_at: SyncRules.now(),
+                                                          space_id: Spaces.wire(Spaces.current)), dirty: true))
                     newAccount = ""; newCard = ""
                     saveAndSync()
                 }
@@ -166,7 +198,10 @@ struct LinkView: View {
             } header: {
                 Text("signup.header")
             } footer: {
-                Text("signup.footer")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("signup.footer")
+                    LegalLine()
+                }
             }
             if let failed { Text(failed).foregroundStyle(.red) }
         }

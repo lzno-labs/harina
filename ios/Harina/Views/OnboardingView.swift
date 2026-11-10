@@ -212,6 +212,7 @@ struct OnboardingView: View {
                                       + (AppleIntelligence.status == .available ? [] : ["onboarding.storage.server.pro4"]),
                                   cons: ["onboarding.storage.server.con1", "onboarding.storage.server.con2"])
                     if storage == .server {
+                        LegalLine()
                         if let signupError { Text(signupError).font(.footnote).foregroundStyle(.red) }
                         Text("onboarding.link.haveAccount").font(.subheadline.weight(.semibold))
                         VStack(alignment: .leading, spacing: 12) {
@@ -409,7 +410,9 @@ struct FirstCaptureView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sync: SyncService
-    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var categories: [CategoryItem]
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @AppStorage("space") private var spaceC = ""
+    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
 
     var body: some View {
         ScrollView {

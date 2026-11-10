@@ -24,11 +24,19 @@ export async function userCount(db) {
 export async function createUser(db, { id = randomToken(12), name } = {}, now = Date.now()) {
   const space = randomToken(12);
   const cleanName = typeof name === "string" && name.trim() ? name.trim().slice(0, 100) : null;
-  const bump = { sql: "UPDATE meta SET value = value + 1 WHERE key = 'seq'", params: [] };
   await db.batch([
     { sql: "INSERT INTO users (id, name, created_at) VALUES (?, ?, ?)", params: [id, cleanName, now] },
-    { sql: "INSERT INTO spaces (id, kind, name, created_by, created_at) VALUES (?, 'personal', NULL, ?, ?)", params: [space, id, now] },
-    { sql: "INSERT INTO members (space_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", params: [space, id, now] },
+    ...newSpaceStatements(space, "personal", null, id, now),
+  ]);
+  return { id, name: cleanName, personalSpace: space };
+}
+
+/** A space with its owner and the suggested categories. */
+export function newSpaceStatements(space, kind, name, ownerId, now = Date.now()) {
+  const bump = { sql: "UPDATE meta SET value = value + 1 WHERE key = 'seq'", params: [] };
+  return [
+    { sql: "INSERT INTO spaces (id, kind, name, created_by, created_at) VALUES (?, ?, ?, ?, ?)", params: [space, kind, name, ownerId, now] },
+    { sql: "INSERT INTO members (space_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", params: [space, ownerId, now] },
     // updated_at 0: a phone that started offline with the same suggested ids always wins.
     ...DEFAULT_CATEGORIES.flatMap((key) => [
       bump,
@@ -37,14 +45,13 @@ export async function createUser(db, { id = randomToken(12), name } = {}, now = 
         params: [space, `default-${key}`, key],
       },
     ]),
-  ]);
-  return { id, name: cleanName, personalSpace: space };
+  ];
 }
 
 /** The person's spaces and the one new rows go to when a device does not say. */
 export async function spacesOf(db, userId) {
   const rows = await db.all(
-    "SELECT s.id, s.kind, s.name, m.role FROM members m JOIN spaces s ON s.id = m.space_id WHERE m.user_id = ? ORDER BY s.kind DESC, s.created_at",
+    "SELECT s.id, s.kind, s.name, m.role FROM members m JOIN spaces s ON s.id = m.space_id WHERE m.user_id = ? ORDER BY s.kind = 'personal' DESC, s.created_at",
     [userId],
   );
   const personal = rows.find((r) => r.kind === "personal")?.id ?? null;
@@ -76,6 +83,8 @@ export async function checkSignup(db, cfg, { ip, setupTokenOk }, now = Date.now(
  * Shared spaces (phase 2) keep what they added; the person just leaves them.
  */
 export async function deleteUser(db, userId) {
+  const { leaveSpace } = await import("./spaces.js");
+  for (const s of (await spacesOf(db, userId)).list.filter((x) => x.kind === "shared")) await leaveSpace(db, userId, s.id);
   const { list } = await spacesOf(db, userId);
   const personal = list.filter((s) => s.kind === "personal").map((s) => s.id);
   const stmts = [];

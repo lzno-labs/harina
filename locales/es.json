@@ -38,7 +38,11 @@
     "codeHelp": "En la app ve a Ajustes, «Entrar en la computadora», y escribe aquí el código que te muestra.",
     "codePlaceholder": "Código del iPhone",
     "codeButton": "Entrar",
-    "codeTitle": "¿Empezaste en el iPhone?"
+    "codeTitle": "¿Empezaste en el iPhone?",
+    "legalBefore": "Al crear tu cuenta aceptas los ",
+    "terms": "términos de uso",
+    "legalAnd": " y el ",
+    "privacy": "aviso de privacidad"
   },
   "month": {
     "title": "Resumen",
@@ -218,7 +222,14 @@
     "signup_full": "Por ahora no hay espacio para cuentas nuevas. Vuelve a intentar más tarde.",
     "rate_limited": "Demasiados intentos. Espera un rato y vuelve a intentar.",
     "invalid_code": "El código no es válido o ya venció.",
-    "invalid_space": "No tienes acceso a ese espacio."
+    "invalid_space": "No tienes acceso a ese espacio.",
+    "invalid_invite": "La invitación no es válida, ya se usó o venció.",
+    "owner_only": "Solo quien creó el espacio puede hacer eso.",
+    "personal_space": "Tu espacio Personal no se puede compartir.",
+    "name_required": "Escribe un nombre.",
+    "too_many_spaces": "Llegaste al máximo de espacios.",
+    "not_found": "No se encontró.",
+    "use_leave": "Para salir, usa «Salir del espacio»."
   },
   "movements": {
     "title": "Movimientos",
@@ -384,5 +395,37 @@
   "account": {
     "delete": "Borrar mi cuenta",
     "confirmDelete": "Se borran tu cuenta, tus movimientos, tus llaves de acceso y tus iPhones vinculados. No se puede deshacer. Escribe BORRAR para confirmar."
+  },
+  "spaces": {
+    "title": "Espacios",
+    "personal": "Personal",
+    "personalHint": "Solo tú lo ves.",
+    "someone": "Alguien",
+    "you": "Tú",
+    "myName": "Tu nombre (lo ven tus espacios compartidos)",
+    "save": "Guardar",
+    "nameSaved": "Nombre guardado.",
+    "invite": "Invitar",
+    "inviteTitle": "Invitación a {name}",
+    "inviteHelp": "Comparte el enlace o el código. Sirve una vez y vence en 7 días. Quien lo use necesita una cuenta de Harina.",
+    "copyLink": "Copiar enlace",
+    "linkCopied": "Enlace copiado.",
+    "rename": "Nuevo nombre del espacio",
+    "delete": "Borrar espacio",
+    "leave": "Salir del espacio",
+    "confirmDelete": "¿Borrar «{name}» y todo lo que tiene, para todos sus miembros? No se puede deshacer.",
+    "confirmLeave": "¿Salir de «{name}»? Lo que anotaste se queda para los demás.",
+    "newName": "Nombre del nuevo espacio, como «Casa»",
+    "create": "Crear",
+    "joinCode": "Código de invitación",
+    "join": "Unirme",
+    "joined": "Te uniste a {name}.",
+    "joinTitle": "Te invitaron a un espacio compartido",
+    "joinText": "Verás y podrás anotar los movimientos de ese espacio. Tu espacio Personal sigue siendo solo tuyo.",
+    "notNow": "Ahora no",
+    "hint": "Lo de tu espacio Personal solo lo ves tú. En un espacio compartido, sus miembros ven y anotan juntos. Una tarjeta pertenece a un espacio: sus pagos con Apple Pay caen ahí.",
+    "cardSpace": "Espacio de {name}",
+    "moveTo": "Mover a otro espacio",
+    "moved": "Movido a {name}."
   }
 }
