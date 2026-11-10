@@ -42,7 +42,7 @@ struct AddMovementIntent: AppIntent {
         let brain = Smart.brain(context)
         // Without a spoken category, the decision model categorizes only when it is sure.
         if dto.category_id == nil, kind == .expense, AppSettings.autoCategory {
-            let d = brain.model.decide(brain.calibration, DecisionState(dto))
+            let d = await Smart.categorize(dto, brain: brain)
             if d.band == .act, let id = d.categoryId { dto.category_id = id; dto.category_auto = 1 }
         }
         context.insert(Movement(dto, dirty: true))

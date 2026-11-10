@@ -274,7 +274,7 @@
 
 "auto.title" = "Categoría automática";
 "auto.toggle" = "Categorizar sola";
-"auto.intro" = "harina categoriza sola los pagos de comercios que ya categorizaste, cuando en tu historial acierta al menos 95 de cada 100. Corre en tu iPhone, sin IA externa. Los marca con ✨ y puedes cambiarlos.";
+"auto.intro" = "harina categoriza sola los pagos de comercios que ya categorizaste, cuando en tu historial acierta al menos 95 de cada 100. Lo que tú elijas siempre manda. Los marca con ✨ y puedes cambiarlos.";
 "auto.mark" = "Categoría puesta por harina";
 "auto.history" = "En tu historial";
 "auto.historyValue %@ %lld" = "acierta %1$@ (%2$lld pagos)";
@@ -288,6 +288,12 @@
 
 "intent.record.savedAuto %@ %@" = "Anotado: %1$@ en %2$@";
 "auto.na" = "sin datos";
+"ai.toggle" = "Usar Apple Intelligence";
+"ai.footer" = "Para comercios que harina todavía no conoce, le pregunta a Apple Intelligence qué categoría es. Corre en tu iPhone, sin internet, y nada sale del teléfono.";
+"ai.turnedOff" = "Activa Apple Intelligence en Ajustes del iPhone y harina la usará para comercios nuevos, sin que nada salga del teléfono.";
+"ai.notReady" = "Apple Intelligence todavía se está preparando en este iPhone. harina la usará cuando esté lista.";
+"ai.notEligible" = "Este iPhone no tiene Apple Intelligence. harina aprende solo de tu historial.";
+"ai.unsupported" = "Apple Intelligence necesita iOS 26 o más reciente. harina aprende solo de tu historial.";
 
 "settings.notify" = "Avisarme para categorizar cada pago";
 
