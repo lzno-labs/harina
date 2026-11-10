@@ -4,93 +4,205 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+/// Settings as a short list (docs/design/onboarding.md): the account on top, then one row per area
+/// with its current state; the details live one tap away.
 struct SettingsView: View {
-    @Environment(\.modelContext) private var context
     @EnvironmentObject private var sync: SyncService
     @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
-    @AppStorage("space") private var spaceC = ""
-    private var categories: [CategoryItem] { allCategories.inSpace(Spaces.valid(spaceC)) }
     @Query(filter: #Predicate<AccountItem> { $0.deleted == false }) private var allAccounts: [AccountItem]
-    @AppStorage("space") private var spaceA = ""
-    private var accounts: [AccountItem] { allAccounts.inSpace(Spaces.valid(spaceA)) }
     @Query(filter: #Predicate<Movement> { $0.deleted == false }, sort: \Movement.occurredAt) private var movements: [Movement]
-    @AppStorage("defaultCurrency") private var defaultCurrency = "CRC"
+    @AppStorage("space") private var space = ""
     @AppStorage("appLock") private var appLock = true
-    @AppStorage("categoryNotifications") private var notify = true
-    @State private var newAccount = ""
-    @State private var newCard = ""
+    @AppStorage("autoCategory") private var autoCategory = true
+
+    private var current: String { Spaces.valid(space) }
+    private var categories: [CategoryItem] { allCategories.inSpace(current) }
 
     var body: some View {
         Form {
-            Section("settings.server") {
-                if sync.isLinked, let url = AppSettings.serverURL {
-                    LabeledContent("settings.linkedTo") { Text(url.host() ?? url.absoluteString) }
+            Section {
+                NavigationLink { AccountView() } label: { AccountCard() }
+            }
+            Section("settings.money") {
+                if sync.isLinked {
+                    row("spaces.title", "person.2.fill", [Color(hex: 0x22C58B), Color(hex: 0x0EA5A4)],
+                        value: sync.spaces.map { Spaces.name(Spaces.local($0.id)) }.joined(separator: ", ")) { SpacesView() }
+                }
+                row("categories.title", "square.grid.2x2.fill", Theme.brandColors,
+                    value: String(localized: "categories.count \(categories.count)")) {
+                    ScrollView { CategoriesGrid().padding(16) }
+                        .background(Theme.background)
+                        .navigationTitle("categories.title")
+                }
+                row("accounts.title", "creditcard.fill", [Color(hex: 0x4C8DFF), Color(hex: 0x6A5CFF)],
+                    value: "\(allAccounts.count)") { CardsView() }
+                row("auto.title", "sparkles", [Color(hex: 0xFFB547), Color(hex: 0xFF7A45)], value: autoSummary) {
+                    Form { AutoCategorySection() }.navigationTitle("auto.title")
+                }
+            }
+            Section("settings.capture") {
+                row("settings.captureRow", "bolt.fill", [Color(hex: 0xFF5F6D), Color(hex: 0xFF4F6D)],
+                    value: AppSettings.defaultCurrency) { CaptureSettingsView() }
+            }
+            Section {
+                Toggle(isOn: $appLock) {
+                    Label { Text("settings.appLock") } icon: { IconTile(systemName: "faceid", colors: [Color(hex: 0x8B5CF6), Color(hex: 0x6366F1)], size: 30) }
+                }
+                ShareLink(item: exportFile()) {
+                    Label { Text("settings.export") } icon: { IconTile(systemName: "square.and.arrow.up", colors: [Color(hex: 0x8E97A8), Color(hex: 0x5F6779)], size: 30) }
+                }
+                .foregroundStyle(.primary)
+                if let terms = LegalLine.url("HarinaTermsURL"), let privacy = LegalLine.url("HarinaPrivacyURL") {
+                    Link(destination: privacy) { Text("legal.privacyTitle") }
+                    Link(destination: terms) { Text("legal.termsTitle") }
+                }
+            } header: {
+                Text("settings.data")
+            } footer: {
+                Text("settings.privacy")
+            }
+            Section {
+                Button("settings.replayOnboarding") { UserDefaults.standard.set(false, forKey: "onboarded") }
+                    .font(.footnote)
+            } footer: {
+                Text(verbatim: "Harina \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+            }
+        }
+        .navigationTitle("tab.settings")
+        .tint(Color(hex: 0xFF4F6D))
+    }
+
+    private var autoSummary: String {
+        guard autoCategory else { return L("settings.off") }
+        let p = Smart.brain(movements: movements.inSpace(current), categories: categories).stats.precision
+        return p.map { String(localized: "settings.autoValue \($0.formatted(.percent.precision(.fractionLength(0))))") } ?? L("settings.on")
+    }
+
+    private func row<Destination: View>(_ title: LocalizedStringKey, _ symbol: String, _ colors: [Color], value: String,
+                                        @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            HStack(spacing: 12) {
+                IconTile(systemName: symbol, colors: colors, size: 30)
+                Text(title)
+                Spacer(minLength: 8)
+                Text(verbatim: value).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+    }
+
+    /// Everything on this iPhone as CSV (the web also exports JSON).
+    private func exportFile() -> URL {
+        let headers = ["date", "kind", "amount", "currency", "category", "account", "merchant", "note", "card", "source", "needs_review", "id"]
+            .map { L("export." + $0) }
+        let csv = CSVExport.make(
+            movements.map(\.dto), headers: headers,
+            categoryName: { id in allCategories.first { $0.id == id }?.displayName ?? "" },
+            accountName: { id in allAccounts.first { $0.id == id }?.name ?? "" },
+            label: { L("label." + $0) }
+        )
+        let url = FileManager.default.temporaryDirectory.appending(path: "harina.csv")
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+}
+
+/// Top of settings: who you are, where your data lives and whether it is in sync.
+struct AccountCard: View {
+    @EnvironmentObject private var sync: SyncService
+
+    private var me: SpaceInfo.Member? { sync.spaces.first?.members.first(where: \.me) }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(Theme.brand)
+                Text(verbatim: String((me?.name ?? "H").prefix(1)).uppercased()).font(.title3.weight(.heavy)).foregroundStyle(.white)
+            }
+            .frame(width: 48, height: 48)
+            VStack(alignment: .leading, spacing: 3) {
+                if sync.isLinked, let host = AppSettings.serverURL?.host() {
+                    Text(verbatim: me?.name ?? host).font(.headline)
+                    if sync.lastError != nil {
+                        Label("settings.syncError", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                    } else if let last = sync.lastSync {
+                        Text("settings.syncedAt \(host) \(last.formatted(.relative(presentation: .named)))").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text(verbatim: host).font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("settings.noAccount").font(.headline)
+                    Text("settings.noAccountHint").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+/// The account: sync, the web on the computer, linking and unlinking.
+struct AccountView: View {
+    @EnvironmentObject private var sync: SyncService
+    @State private var confirmUnlink = false
+
+    var body: some View {
+        Form {
+            if sync.isLinked, let url = AppSettings.serverURL {
+                Section {
+                    LabeledContent("settings.linkedTo") { Text(verbatim: url.host() ?? url.absoluteString) }
                     if let last = sync.lastSync {
                         LabeledContent("settings.lastSync") { Text(last.formatted(date: .abbreviated, time: .shortened)) }
                     }
                     if sync.lastError != nil { Text("settings.syncError").foregroundStyle(.orange) }
                     Button("settings.syncNow") { Task { await sync.sync() } }.disabled(sync.syncing)
+                }
+                Section {
                     NavigationLink("webcode.title") { WebCodeView() }
-                    Button("settings.unlink", role: .destructive) { sync.unlink() }
-                } else {
+                } footer: {
+                    Text("settings.webHint")
+                }
+                Section {
+                    Button("settings.unlink", role: .destructive) { confirmUnlink = true }
+                } footer: {
+                    Text("settings.deleteHint")
+                }
+            } else {
+                Section {
                     NavigationLink("settings.link") { LinkView() }
-                    Text("settings.linkHint").font(.caption).foregroundStyle(.secondary)
+                } footer: {
+                    Text("settings.linkHint")
                 }
             }
-            Section("settings.capture") {
-                NavigationLink("settings.automationHelp") { AutomationHelpView() }
-                Toggle("settings.notify", isOn: $notify)
-                    .onChange(of: notify) { _, on in
-                        if on { Task { await PaymentNotifier.requestPermission() } }
-                    }
-                Picker("settings.defaultCurrency", selection: $defaultCurrency) {
-                    Text(verbatim: "CRC").tag("CRC")
-                    Text(verbatim: "USD").tag("USD")
-                }
-            }
-            Section("categories.title") {
-                NavigationLink {
-                    ScrollView { CategoriesGrid().padding(16) }
-                        .background(Theme.background)
-                        .navigationTitle("categories.title")
-                } label: {
-                    HStack(spacing: 12) {
-                        IconTile(systemName: "square.grid.2x2.fill", colors: Theme.brandColors, size: 32)
-                        VStack(alignment: .leading) {
-                            Text("categories.manage")
-                            Text("categories.count \(categories.count)").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-            Section {
-                NavigationLink {
-                    SpacesView()
-                } label: {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("spaces.title")
-                            Text(sync.isLinked ? "spaces.subtitle" : "spaces.needsServer").font(.caption).foregroundStyle(.secondary)
-                        }
-                    } icon: { Image(systemName: "person.2.fill") }
-                }
-                .disabled(!sync.isLinked)
-                if sync.spaces.count > 1 {
-                    LabeledContent("spaces.current") { SpacePicker() }
-                }
-            }
-            AutoCategorySection()
+        }
+        .navigationTitle("settings.account")
+        .confirmationDialog("settings.unlinkConfirm", isPresented: $confirmUnlink, titleVisibility: .visible) {
+            Button("settings.unlink", role: .destructive) { sync.unlink() }
+        }
+    }
+}
+
+/// Cards and accounts: each belongs to a space, where its Apple Pay payments land.
+struct CardsView: View {
+    @Environment(\.modelContext) private var context
+    @EnvironmentObject private var sync: SyncService
+    @Query(filter: #Predicate<AccountItem> { $0.deleted == false }, sort: \AccountItem.name) private var accounts: [AccountItem]
+    @State private var adding = false
+    @State private var newName = ""
+    @State private var newCard = ""
+
+    var body: some View {
+        List {
             Section {
                 ForEach(accounts) { a in
                     HStack(spacing: 12) {
                         IconTile(systemName: "creditcard.fill", colors: [Color(hex: 0x4C8DFF), Color(hex: 0x6A5CFF)], size: 32)
                         VStack(alignment: .leading) {
-                            Text(a.name)
-                            if let card = a.card { Text(card).font(.caption).foregroundStyle(.secondary) }
+                            Text(verbatim: a.name)
+                            if let card = a.card { Text(verbatim: card).font(.caption).foregroundStyle(.secondary) }
                         }
+                        Spacer()
                         if sync.spaces.count > 1 {
-                            Spacer()
-                            // A card belongs to a space: its Apple Pay payments land there.
                             Menu {
                                 ForEach(sync.spaces.filter { Spaces.local($0.id) != a.space }) { sp in
                                     Button(Spaces.name(Spaces.local(sp.id))) { Task { try? await sync.move(a, to: Spaces.local(sp.id)) } }
@@ -105,55 +217,65 @@ struct SettingsView: View {
                     for i in idx { accounts[i].deleted = true; accounts[i].updatedAt = SyncRules.now(); accounts[i].dirty = true }
                     saveAndSync()
                 }
-                TextField("accounts.name", text: $newAccount)
-                TextField("accounts.card", text: $newCard)
-                Button("accounts.add") {
-                    let name = newAccount.trimmingCharacters(in: .whitespaces)
-                    guard !name.isEmpty else { return }
-                    let card = newCard.trimmingCharacters(in: .whitespaces)
-                    context.insert(AccountItem(AccountDTO(id: UUID().uuidString, name: String(name.prefix(100)),
-                                                          card: card.isEmpty ? nil : String(card.prefix(100)), updated_at: SyncRules.now(),
-                                                          space_id: Spaces.wire(Spaces.current)), dirty: true))
-                    newAccount = ""; newCard = ""
-                    saveAndSync()
-                }
-            } header: {
-                Text("accounts.title")
             } footer: {
-                Text("accounts.cardHint")
-            }
-            Section {
-                ShareLink(item: exportFile()) { Label("settings.export", systemImage: "square.and.arrow.up") }
-                Toggle("settings.appLock", isOn: $appLock)
-                Button("settings.replayOnboarding") { UserDefaults.standard.set(false, forKey: "onboarded") }
-            } header: {
-                Text("settings.data")
-            } footer: {
-                Text("settings.privacy")
+                Text(accounts.isEmpty ? "accounts.empty" : "accounts.cardHint")
             }
         }
-        .navigationTitle("tab.settings")
-        .tint(Color(hex: 0xFF4F6D))
+        .navigationTitle("accounts.title")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { adding = true } label: { Label("accounts.add", systemImage: "plus") }
+            }
+        }
+        .alert("accounts.add", isPresented: $adding) {
+            TextField("accounts.name", text: $newName)
+            TextField("accounts.card", text: $newCard)
+            Button("spaces.save") { add() }
+            Button("app.cancel", role: .cancel) { newName = ""; newCard = "" }
+        } message: {
+            Text("accounts.addHint")
+        }
+    }
+
+    private func add() {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        let card = newCard.trimmingCharacters(in: .whitespaces)
+        context.insert(AccountItem(AccountDTO(id: UUID().uuidString, name: String(name.prefix(100)),
+                                              card: card.isEmpty ? nil : String(card.prefix(100)), updated_at: SyncRules.now(),
+                                              space_id: Spaces.wire(Spaces.current)), dirty: true))
+        newName = ""; newCard = ""
+        saveAndSync()
     }
 
     private func saveAndSync() {
         try? context.save()
         Task { await sync.sync() }
     }
+}
 
-    /// Everything on this iPhone as CSV (the web also exports JSON).
-    private func exportFile() -> URL {
-        let headers = ["date", "kind", "amount", "currency", "category", "account", "merchant", "note", "card", "source", "needs_review", "id"]
-            .map { L("export." + $0) }
-        let csv = CSVExport.make(
-            movements.map(\.dto), headers: headers,
-            categoryName: { id in categories.first { $0.id == id }?.displayName ?? "" },
-            accountName: { id in accounts.first { $0.id == id }?.name ?? "" },
-            label: { L("label." + $0) }
-        )
-        let url = FileManager.default.temporaryDirectory.appending(path: "harina.csv")
-        try? csv.write(to: url, atomically: true, encoding: .utf8)
-        return url
+/// Apple Pay capture: the shortcut guide, the category notification and the fallback currency.
+struct CaptureSettingsView: View {
+    @AppStorage("defaultCurrency") private var defaultCurrency = "CRC"
+    @AppStorage("categoryNotifications") private var notify = true
+
+    var body: some View {
+        Form {
+            Section {
+                NavigationLink("settings.automationHelp") { AutomationHelpView() }
+            }
+            Section {
+                Toggle("settings.notify", isOn: $notify)
+                    .onChange(of: notify) { _, on in
+                        if on { Task { await PaymentNotifier.requestPermission() } }
+                    }
+                Picker("settings.defaultCurrency", selection: $defaultCurrency) {
+                    Text(verbatim: "CRC").tag("CRC")
+                    Text(verbatim: "USD").tag("USD")
+                }
+            }
+        }
+        .navigationTitle("settings.captureRow")
     }
 }
 
