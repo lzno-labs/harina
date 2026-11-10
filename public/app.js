@@ -17,6 +17,10 @@ const state = {
   query: "",
   back: "#/",
   devices: [],
+  // Every row of every space the person is in, keyed by "space:id" (docs/design/people-and-spaces.md).
+  all: { accounts: new Map(), categories: new Map(), transactions: new Map() },
+  spaces: [],
+  space: null,
 };
 const app = document.getElementById("app");
 let main;
@@ -72,6 +76,8 @@ const ICONS = {
   trash: "M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6",
   edit: "M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z",
   shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  move: "M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20",
 };
 
 function icon(name) {
@@ -278,24 +284,99 @@ function txTile(tx) {
 
 // ---------- data sync ----------
 
-function applyRecords(records) {
-  for (const [entity, rows] of Object.entries(records)) for (const r of rows) state[entity].set(r.id, r);
+const SPACE_KEY = "harina.space";
+
+/** The views read the selected space only; `state.all` keeps every space. */
+function rebuild() {
+  if (!state.spaces.some((sp) => sp.id === state.space)) {
+    let saved = null;
+    try {
+      saved = localStorage.getItem(SPACE_KEY);
+    } catch {
+      saved = null;
+    }
+    state.space = (state.spaces.find((sp) => sp.id === saved) ?? state.spaces.find((sp) => sp.kind === "personal") ?? state.spaces[0])?.id ?? null;
+  }
+  for (const entity of ["accounts", "categories", "transactions"]) {
+    state[entity] = new Map([...state.all[entity].values()].filter((r) => r.space_id === state.space).map((r) => [r.id, r]));
+  }
   insightsCache = null;
+}
+
+function applyRecords(records, spaces) {
+  if (spaces) {
+    state.spaces = spaces;
+    // A space the person left or that was deleted disappears with its rows.
+    const ids = new Set(spaces.map((sp) => sp.id));
+    for (const entity of Object.keys(state.all)) for (const [k, r] of state.all[entity]) if (!ids.has(r.space_id)) state.all[entity].delete(k);
+  }
+  for (const [entity, rows] of Object.entries(records)) for (const r of rows) state.all[entity].set(`${r.space_id}:${r.id}`, r);
+  rebuild();
 }
 
 async function loadAll() {
   let since = 0;
+  for (const entity of Object.keys(state.all)) state.all[entity].clear();
   for (;;) {
     const r = await api(`/api/sync?since=${since}`);
-    applyRecords(r.records);
+    applyRecords(r.records, r.spaces);
     since = r.seq;
     if (!r.more) break;
   }
 }
 
+/** Saves a row in its space, or in the selected space when it is new. */
 async function save(entity, record) {
-  const r = await api("/api/sync", { method: "POST", body: { changes: { [entity]: [{ ...record, updated_at: Date.now() }] } } });
+  const r = await api("/api/sync", { method: "POST", body: { changes: { [entity]: [{ space_id: state.space, ...record, updated_at: Date.now() }] } } });
   applyRecords(r.records);
+}
+
+/** Moves a movement or an account to another space: a tombstone here, the same row there. */
+async function moveTo(entity, record, spaceId) {
+  const now = Date.now();
+  const target = { ...record, space_id: spaceId, updated_at: now, deleted: false };
+  if (entity === "transactions") {
+    const keep = record.category_id && state.all.categories.get(`${spaceId}:${record.category_id}`);
+    if (!keep || keep.deleted) target.category_id = null;
+    const acc = record.account_id && state.all.accounts.get(`${spaceId}:${record.account_id}`);
+    if (!acc || acc.deleted) target.account_id = null;
+  }
+  const r = await api("/api/sync", { method: "POST", body: { changes: { [entity]: [{ ...record, deleted: true, updated_at: now }, target] } } });
+  applyRecords(r.records);
+}
+
+function selectSpace(id) {
+  state.space = id;
+  try {
+    localStorage.setItem(SPACE_KEY, id);
+  } catch {
+    // Per-browser convenience only.
+  }
+  rebuild();
+  router();
+}
+
+const spaceName = (sp) => (sp?.kind === "personal" ? t("spaces.personal") : (sp?.name ?? ""));
+const currentSpace = () => state.spaces.find((sp) => sp.id === state.space);
+
+/** Chips to switch space, shown only when the person has more than one. */
+function spaceSwitcher() {
+  if (state.spaces.length < 2) return null;
+  return h(
+    "div",
+    { class: "chips spaces-switch", role: "group", "aria-label": t("spaces.title") },
+    state.spaces.map((sp) =>
+      h("button", { class: "chip", "aria-pressed": String(sp.id === state.space), onclick: () => selectSpace(sp.id) }, sp.kind === "shared" ? icon("users") : null, spaceName(sp)),
+    ),
+  );
+}
+
+/** "Ana" under a movement of a shared space when someone else added it. */
+function addedBy(tx) {
+  const sp = currentSpace();
+  if (sp?.kind !== "shared" || !tx.created_by) return null;
+  const m = sp.members.find((x) => x.id === tx.created_by);
+  return m && !m.me ? (m.name ?? t("spaces.someone")) : null;
 }
 
 // ---------- shell ----------
@@ -341,7 +422,7 @@ function markNav() {
 }
 
 function render(...content) {
-  main.replaceChildren(h("div", { class: "fade-in" }, ...content));
+  main.replaceChildren(h("div", { class: "fade-in" }, spaceSwitcher(), ...content));
   markNav();
   window.scrollTo(0, 0);
 }
@@ -787,7 +868,7 @@ function viewFixed() {
 function txRow(tx) {
   const c = state.categories.get(tx.category_id);
   const acc = state.accounts.get(tx.account_id);
-  const sub = [categoryName(c), acc && !acc.deleted ? acc.name : null].filter(Boolean).join(" · ");
+  const sub = [categoryName(c), acc && !acc.deleted ? acc.name : null, addedBy(tx)].filter(Boolean).join(" · ");
   const amount = tx.needs_review && tx.raw_amount && !tx.amount_minor
     ? h("div", { class: "amt" }, h("small", { text: t("review.fixAmount") }), tx.raw_amount)
     : h("div", { class: `amt num ${tx.kind === "income" ? "in" : ""}`, text: `${tx.kind === "income" ? "+" : ""}${money(tx.amount_minor, tx.currency)}` });
@@ -1020,6 +1101,26 @@ function viewForm(existing) {
             }, icon("trash"), t("form.delete"))
           : null,
       ),
+      existing && state.spaces.length > 1
+        ? h("label", { class: "field move-field" },
+            h("span", {}, icon("move"), t("spaces.moveTo")),
+            h(
+              "select",
+              {
+                class: "input",
+                onchange: (e) =>
+                  e.target.value &&
+                  guarded(async () => {
+                    await moveTo("transactions", tx, e.target.value);
+                    toast(t("spaces.moved", { name: spaceName(state.spaces.find((sp) => sp.id === e.target.value)) }));
+                    location.hash = state.back;
+                  }),
+              },
+              h("option", { value: "", text: spaceName(currentSpace()) }),
+              state.spaces.filter((sp) => sp.id !== tx.space_id).map((sp) => h("option", { value: sp.id, text: spaceName(sp) })),
+            ),
+          )
+        : null,
     ),
   );
   render(h("div", { class: "page-head composer" }, h("h1", { text: t(existing ? "form.titleEdit" : "form.titleNew") })), form);
@@ -1318,6 +1419,103 @@ function autoCategoryGroup() {
 
 // ---------- settings ----------
 
+/** Spaces: personal and shared, members, invites, joining and leaving (docs/design/people-and-spaces.md). */
+function spacesGroup(onchange) {
+  const after = (r) => {
+    if (r?.spaces) applyRecords({}, r.spaces);
+    onchange();
+  };
+  const me = state.session?.user;
+  const name = h("input", { class: "input", value: me?.name ?? "", placeholder: t("spaces.myName"), "aria-label": t("spaces.myName") });
+  const newSpace = h("input", { class: "input", placeholder: t("spaces.newName"), "aria-label": t("spaces.newName"), required: true });
+  const joinCode = h("input", { class: "input", placeholder: t("spaces.joinCode"), "aria-label": t("spaces.joinCode"), required: true });
+  const inviteBox = h("div");
+  const invite = (sp) =>
+    guarded(async () => {
+      const { code } = await api(`/api/spaces/${sp.id}/invites`, { method: "POST", body: {} });
+      const link = `${state.origin}/#/unirme/${code}`;
+      inviteBox.replaceChildren(
+        h("div", { class: "row invite" },
+          h("div", { class: "qr-box" }, qrSvg(link)),
+          h("div", { class: "grow" },
+            h("b", { text: t("spaces.inviteTitle", { name: spaceName(sp) }) }),
+            h("span", { text: t("spaces.inviteHelp") }),
+            h("p", { class: "code num", text: code }),
+            h("button", { class: "btn", onclick: () => navigator.clipboard?.writeText(link).then(() => toast(t("spaces.linkCopied"))) }, t("spaces.copyLink")),
+          ),
+        ),
+      );
+    });
+  return h(
+    "div",
+    {},
+    h("p", { class: "group-title", text: t("spaces.title") }),
+    h(
+      "div",
+      { class: "group" },
+      h("form", { class: "row inline-form", onsubmit: (e) => (e.preventDefault(), guarded(async () => (await api("/api/me", { method: "PATCH", body: { name: name.value } }), (state.session.user.name = name.value), toast(t("spaces.nameSaved"))))) },
+        name, h("button", { class: "btn", text: t("spaces.save") })),
+      state.spaces.map((sp) =>
+        h("div", { class: "row space-row" },
+          h("span", { class: "tile sm", bg: sp.kind === "shared" ? "linear-gradient(135deg, #22c58b, #0ea5a4)" : "linear-gradient(135deg, #8b5cf6, #6366f1)" }, icon(sp.kind === "shared" ? "users" : "key")),
+          h("div", { class: "grow" },
+            h("b", { text: spaceName(sp) }),
+            h("span", { text: sp.kind === "personal" ? t("spaces.personalHint") : sp.members.map((m) => (m.me ? t("spaces.you") : (m.name ?? t("spaces.someone")))).join(", ") }),
+          ),
+          sp.kind === "shared" ? h("button", { class: "btn", onclick: () => invite(sp) }, icon("plus"), t("spaces.invite")) : null,
+          sp.kind === "shared" && sp.role === "owner"
+            ? h("button", { class: "link-btn", "aria-label": t("spaces.rename"), onclick: () => {
+                const n = prompt(t("spaces.rename"), sp.name);
+                if (n) guarded(async () => after(await api(`/api/spaces/${sp.id}`, { method: "PATCH", body: { name: n } })));
+              } }, icon("edit"))
+            : null,
+          sp.kind === "shared"
+            ? h("button", { class: "link-btn danger", "aria-label": sp.role === "owner" ? t("spaces.delete") : t("spaces.leave"), title: sp.role === "owner" ? t("spaces.delete") : t("spaces.leave"), onclick: () => {
+                if (sp.role === "owner") {
+                  if (confirm(t("spaces.confirmDelete", { name: sp.name }))) guarded(async () => after(await api(`/api/spaces/${sp.id}`, { method: "DELETE" })));
+                } else if (confirm(t("spaces.confirmLeave", { name: sp.name }))) {
+                  guarded(async () => after(await api(`/api/spaces/${sp.id}/leave`, { method: "POST", body: {} })));
+                }
+              } }, icon(sp.role === "owner" ? "trash" : "logout"))
+            : null,
+        ),
+      ),
+      inviteBox,
+      h("form", { class: "row inline-form", onsubmit: (e) => (e.preventDefault(), guarded(async () => {
+        const r = await api("/api/spaces", { method: "POST", body: { name: newSpace.value } });
+        await loadAll();
+        selectSpace(r.id);
+      })) }, newSpace, h("button", { class: "btn" }, icon("plus"), t("spaces.create"))),
+      h("form", { class: "row inline-form", onsubmit: (e) => (e.preventDefault(), joinSpace(joinCode.value)) }, joinCode, h("button", { class: "btn", text: t("spaces.join") })),
+    ),
+    h("p", { class: "eyebrow", text: t("spaces.hint") }),
+  );
+}
+
+async function joinSpace(code) {
+  return guarded(async () => {
+    const r = await api("/api/invites/accept", { method: "POST", body: { code } });
+    await loadAll();
+    toast(t("spaces.joined", { name: r.space.name }));
+    location.hash = "#/";
+    selectSpace(r.space.id);
+  });
+}
+
+/** #/unirme/CODE: an invitation link opened by someone signed in. */
+function viewJoin(code) {
+  render(
+    h("section", { class: "card join" },
+      h("span", { class: "big-emoji", text: "🏠" }),
+      h("h1", { text: t("spaces.joinTitle") }),
+      h("p", { text: t("spaces.joinText") }),
+      h("p", { class: "code num", text: code }),
+      h("button", { class: "btn primary", onclick: () => joinSpace(code) }, t("spaces.join")),
+      h("a", { class: "btn block", href: "#/", text: t("spaces.notNow") }),
+    ),
+  );
+}
+
 async function viewSettings() {
   const [{ devices }, { connections }] = await Promise.all([api("/api/devices"), api("/api/connections")]);
   state.devices = devices;
@@ -1329,7 +1527,7 @@ async function viewSettings() {
     h("div", { class: "page-head" }, h("h1", { text: t("settings.title") })),
     h("div", { class: "grid dash" },
       h("div", {},
-        h("p", { class: "group-title", text: t("categories.title") }),
+        h("p", { class: "group-title", text: state.spaces.length > 1 ? `${t("categories.title")} · ${spaceName(currentSpace())}` : t("categories.title") }),
         h(
           "div",
           { class: "group" },
@@ -1345,7 +1543,7 @@ async function viewSettings() {
           h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editCategory(null, rerender) }, icon("plus"), t("categories.add"))),
         ),
         suggestionsBox(rerender),
-        h("p", { class: "group-title", text: t("accounts.title") }),
+        h("p", { class: "group-title", text: state.spaces.length > 1 ? `${t("accounts.title")} · ${spaceName(currentSpace())}` : t("accounts.title") }),
         h(
           "div",
           { class: "group" },
@@ -1354,6 +1552,18 @@ async function viewSettings() {
               iconTile("card", "#4c8dff", "#6a5cff"),
               a.name,
               a.card,
+              state.spaces.length > 1
+                ? h(
+                    "select",
+                    {
+                      class: "input compact",
+                      "aria-label": t("spaces.cardSpace", { name: a.name }),
+                      title: t("spaces.cardSpace", { name: a.name }),
+                      onchange: (e) => guarded(async () => (await moveTo("accounts", a, e.target.value), rerender())),
+                    },
+                    state.spaces.map((sp) => h("option", { value: sp.id, selected: sp.id === a.space_id, text: spaceName(sp) })),
+                  )
+                : null,
               h("button", {
                 class: "link-btn danger",
                 "aria-label": t("form.delete"),
@@ -1382,6 +1592,7 @@ async function viewSettings() {
         h("p", { class: "eyebrow", text: t("accounts.cardHint") }),
       ),
       h("div", {},
+        spacesGroup(rerender),
         autoCategoryGroup(),
         connectionsGroup(connections, rerender),
         h("p", { class: "group-title", text: t("settings.sync") }),
@@ -1497,6 +1708,8 @@ function router() {
     const tx = state.transactions.get(edit[1]);
     return tx && !tx.deleted ? viewForm(tx) : (location.hash = "#/");
   }
+  const join = hash.match(/^#\/unirme\/([A-Za-z0-9-]{4,20})$/);
+  if (join) return viewJoin(join[1]);
   if (hash === "#/nuevo") return viewForm();
   if (hash === "#/movimientos") return viewMovements();
   if (hash === "#/fijos") return viewFixed();
@@ -1570,7 +1783,6 @@ async function boot() {
   if (consent?.startsWith("error/")) return viewConsent(consent);
   if (!session.authenticated) return viewLogin(session);
   if (consent) return viewConsent(consent);
-  for (const k of ["accounts", "categories", "transactions"]) state[k].clear();
   await guarded(async () => {
     await loadAll();
     state.devices = (await api("/api/devices")).devices;

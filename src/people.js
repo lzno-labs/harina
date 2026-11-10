@@ -51,7 +51,7 @@ export function newSpaceStatements(space, kind, name, ownerId, now = Date.now())
 /** The person's spaces and the one new rows go to when a device does not say. */
 export async function spacesOf(db, userId) {
   const rows = await db.all(
-    "SELECT s.id, s.kind, s.name, m.role FROM members m JOIN spaces s ON s.id = m.space_id WHERE m.user_id = ? ORDER BY s.kind DESC, s.created_at",
+    "SELECT s.id, s.kind, s.name, m.role FROM members m JOIN spaces s ON s.id = m.space_id WHERE m.user_id = ? ORDER BY s.kind = 'personal' DESC, s.created_at",
     [userId],
   );
   const personal = rows.find((r) => r.kind === "personal")?.id ?? null;
