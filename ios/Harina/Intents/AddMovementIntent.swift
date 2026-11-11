@@ -42,11 +42,14 @@ struct AddMovementIntent: AppIntent {
         )
         let brain = Smart.brain(context, space: Spaces.current)
         // Without a spoken category, the decision model categorizes only when it is sure.
+        var suggested: String?
         if dto.category_id == nil, kind == .expense, AppSettings.autoCategory {
             let d = await Smart.categorize(dto, brain: brain)
-            if d.band == .act, let id = d.categoryId { dto.category_id = id; dto.category_auto = 1 }
+            if d.band == .act, let id = d.categoryId { dto.category_id = id; dto.category_auto = 1 } else { suggested = Smart.suggestion(d) }
         }
-        context.insert(Movement(dto, dirty: true))
+        let new = Movement(dto, dirty: true)
+        new.suggestedCategoryId = suggested
+        context.insert(new)
         try context.save()
         await SyncService.shared.sync()
 

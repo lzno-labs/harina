@@ -30,6 +30,9 @@ final class Movement {
     var createdBy: String?
     /// Savings pot: a deposit, a withdrawal, or an expense paid from it.
     var potId: String?
+    /// Likely category from Apple Intelligence or the hosted model when it was not sure enough to
+    /// assign it: shown first with ✨ in «Por revisar». Only on this iPhone, never synced.
+    var suggestedCategoryId: String?
 
     init(_ dto: TransactionDTO, dirty: Bool) {
         space = Spaces.local(dto.space_id); createdBy = dto.created_by; potId = dto.pot_id
@@ -295,6 +298,12 @@ enum AppSettings {
     static var hostedDecider: Bool {
         get { defaults.bool(forKey: "hostedDecider") }
         set { defaults.set(newValue, forKey: "hostedDecider") }
+    }
+    /// From what confidence the hosted model assigns a category on its own (each person sets it on their iPhone).
+    static let defaultHostedThreshold = 0.5
+    static var hostedThreshold: Double {
+        get { (defaults.object(forKey: "hostedThreshold") as? Double).map { min(0.95, max(0.3, $0)) } ?? defaultHostedThreshold }
+        set { defaults.set(newValue, forKey: "hostedThreshold") }
     }
     static var onboarded: Bool {
         get { defaults.bool(forKey: "onboarded") }

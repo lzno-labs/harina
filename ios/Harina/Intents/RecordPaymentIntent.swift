@@ -41,7 +41,9 @@ struct RecordPaymentIntent: AppIntent {
             dto.category_auto = 1
             autoCategory = c
         }
-        context.insert(Movement(dto, dirty: true))
+        let new = Movement(dto, dirty: true)
+        if autoCategory == nil, dto.needs_review == 0 { new.suggestedCategoryId = Smart.suggestion(decision) }
+        context.insert(new)
         try context.save()
         // Best effort: without signal the payment waits in the queue and syncs later.
         await SyncService.shared.sync()
