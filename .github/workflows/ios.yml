@@ -1,11 +1,20 @@
-# iOS build on a macOS runner. While this repository is private, every macOS minute counts as
-# ten, so this runs only by hand (Actions, ios, Run workflow). When the repository is public it
-# becomes free: add `pull_request:` and `push: branches: [main]` to the triggers.
-# Signing and TestFlight uploads never run here; they run from the deployment repository.
+# iOS build on a GitHub-hosted macOS runner (free for public repositories), on every pull request
+# and push to main that touches the iOS app. Unsigned and without secrets, so pull requests from
+# forks run it safely. Signing and TestFlight uploads never run here; they run from the deployment
+# repository.
 name: ios
 
 on:
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  push:
+    branches: [main]
+    paths: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
