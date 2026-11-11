@@ -1,6 +1,6 @@
 # People and spaces: Harina for many people, with personal and shared finances
 
-Status: proposed, 2026-11-10. Architecture: ADR-0006. PRD change: lzno-labs/empresa (owner).
+Status: proposed, 2026-11-10. Architecture: ADR-0006. Scope approved by the owner.
 
 ## Goal
 
@@ -47,7 +47,7 @@ space for more than one currency rule; read-only members.
    rows still on an iPhone sync again after relinking.
 2. **Shared spaces** (spaces, invites, card space, move a movement, space picker, per-space
    categories, who paid) on server, web and iPhone.
-3. **Legal and opening:** privacy notice and terms (empresa `legal/harina/`, owner), then
+3. **Legal and opening:** privacy notice and terms (approved by the owner), then
    `HARINA_SIGNUP=open` on harina.lzno.app.
 
 ## Security and privacy

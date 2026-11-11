@@ -14,7 +14,6 @@ import { checkSignup, createUser, userCount } from "./people.js";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const LINK_CODE_TTL_MS = 10 * 60 * 1000;
-export const MAX_LINK_FAILURES = 5;
 
 export class AuthError extends Error {
   constructor(code, status = 401) {
@@ -201,18 +200,14 @@ export async function createCode(db, userId, purpose) {
   return { code, expiresAt: Date.now() + LINK_CODE_TTL_MS };
 }
 
-/** Takes a code once. Too many wrong codes void every open code of that purpose. */
+/**
+ * Takes a code once. Guessing is limited per IP by the caller (src/limits.js), so a stranger's wrong
+ * codes never void anyone else's open codes.
+ */
 async function takeCode(db, code, purpose) {
   const hash = await sha256(`${purpose}:${normalizeLinkCode(code)}`);
   const row = await db.first("SELECT * FROM link_codes WHERE code_hash = ?", [hash]);
-  const key = `${purpose}_failures`;
   if (!row || row.expires_at < Date.now()) {
-    await db.run("INSERT INTO meta (key, value) VALUES (?, 1) ON CONFLICT (key) DO UPDATE SET value = value + 1", [key]);
-    const f = await db.first("SELECT value FROM meta WHERE key = ?", [key]);
-    if (f.value >= MAX_LINK_FAILURES) {
-      await db.run("DELETE FROM link_codes WHERE purpose = ?", [purpose]);
-      await db.run("UPDATE meta SET value = 0 WHERE key = ?", [key]);
-    }
     throw new AuthError(purpose === "link" ? "invalid_link_code" : "invalid_code", 400);
   }
   await db.run("DELETE FROM link_codes WHERE code_hash = ?", [hash]);

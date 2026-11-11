@@ -102,7 +102,8 @@ export async function deleteUser(db, userId) {
     stmts.push({ sql: `DELETE FROM ${t} WHERE user_id = ?`, params: [userId] });
   }
   stmts.push(
-    { sql: "DELETE FROM meta WHERE key LIKE ?", params: [`%:${userId}`] },
+    // Exact key: "_" in an id is a LIKE wildcard and could match someone else's key.
+    { sql: "DELETE FROM meta WHERE key = ?", params: [`decider_consent_at:${userId}`] },
     { sql: "DELETE FROM users WHERE id = ?", params: [userId] },
   );
   await db.batch(stmts);

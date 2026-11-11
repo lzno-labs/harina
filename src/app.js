@@ -8,6 +8,7 @@ import { LOCALES } from "./locales.js";
 import { pull, push, ValidationError } from "./sync.js";
 import * as oauth from "./oauth.js";
 import { handleMcp } from "./mcp.js";
+import * as limits from "./limits.js";
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy":
@@ -186,15 +187,18 @@ export function createApp({ db, config, assets, decider = null }) {
     if (path === "/.well-known/oauth-authorization-server") return json(oauth.authorizationServerMetadata(cfg), 200, CORS);
     if (path === "/oauth/register" && method === "POST") {
       try {
+        await limits.hit(db, "oauth_register", clientIp(req));
         return json(await oauth.registerClient(db, JSON.parse((await req.text()) || "{}")), 201, CORS);
       } catch (e) {
         if (e instanceof oauth.OAuthError) return oauthError(e);
+        if (e instanceof PeopleError) return json({ error: e.code }, e.status, CORS);
         if (e instanceof SyntaxError) return oauthError(new oauth.OAuthError("invalid_client_metadata", "invalid JSON"));
         throw e;
       }
     }
     if (path === "/oauth/authorize" && method === "GET") {
       try {
+        await limits.hit(db, "oauth_authorize", clientIp(req));
         const { redirect } = await oauth.startAuthorization(db, cfg, url.searchParams);
         return new Response(null, { status: 302, headers: { Location: redirect, "Cache-Control": "no-store" } });
       } catch (e) {
@@ -274,6 +278,7 @@ export function createApp({ db, config, assets, decider = null }) {
         return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, r.session.token, auth.SESSION_TTL_MS) });
       }
       case "POST /api/auth/login/options":
+        await limits.hit(db, "challenge", clientIp(req));
         return json(await auth.authenticationOptions(db, cfg));
       case "POST /api/auth/login/verify": {
         const s = await auth.authenticationVerify(db, cfg, await readJson(req));
@@ -281,6 +286,7 @@ export function createApp({ db, config, assets, decider = null }) {
       }
       // Passkey sign-in from the iPhone app: a device token instead of a cookie.
       case "POST /api/auth/device/login/options":
+        await limits.hit(db, "challenge", clientIp(req));
         return json(await auth.authenticationOptions(db, cfg));
       case "POST /api/auth/device/login/verify": {
         const body = await readJson(req);
@@ -301,7 +307,7 @@ export function createApp({ db, config, assets, decider = null }) {
         return json(await auth.createCode(db, who.userId, "web"));
       case "POST /api/auth/web-code/redeem": {
         const body = await readJson(req);
-        const r = await auth.redeemWebCode(db, body);
+        const r = await limits.guardCode(db, clientIp(req), () => auth.redeemWebCode(db, body));
         return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(cfg, r.session.token, auth.SESSION_TTL_MS) });
       }
 
@@ -310,7 +316,7 @@ export function createApp({ db, config, assets, decider = null }) {
         return json(await auth.createCode(db, who.userId, "link"));
       case "POST /api/devices/link": {
         const body = await readJson(req);
-        return json(await auth.linkDevice(db, body));
+        return json(await limits.guardCode(db, clientIp(req), () => auth.linkDevice(db, body)));
       }
       case "GET /api/devices":
         needSession();
@@ -340,7 +346,8 @@ export function createApp({ db, config, assets, decider = null }) {
       }
       case "POST /api/invites/accept": {
         needAny();
-        const space = await spaces.acceptInvite(db, who.userId, await readJson(req));
+        const body = await readJson(req);
+        const space = await limits.guardCode(db, clientIp(req), () => spaces.acceptInvite(db, who.userId, body));
         return json({ space, spaces: await spaces.listSpaces(db, who.userId) });
       }
       case "PATCH /api/me":

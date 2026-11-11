@@ -1,6 +1,6 @@
 # Design: recurring expenses and automatic categories (decision model)
 
-- **Issue:** owner request, 2026-11-05; PRD change in `lzno-labs/empresa` (harina 1.1)
+- **Issue:** owner request, 2026-11-05; scope approved by the owner (harina 1.1)
 - **Status:** Approved by the owner in chat; PRD change pending merge
 - **Author:** owner session (claude)
 - **Touches:** data (one new column), money (projections are estimates), AI (none; a hosted model is a separate decision)

@@ -72,3 +72,13 @@ test("apple-app-site-association lists only configured app ids", async () => {
   assert.match(r.headers.get("Content-Type"), /application\/json/);
   assert.deepEqual(await r.json(), { webcredentials: { apps: ["ABCDE12345.app.example.harina"] } });
 });
+
+test("anonymous passkey challenges are limited per IP", async () => {
+  const { call } = await setup();
+  const from = { "CF-Connecting-IP": "8.8.8.8", Origin: ORIGIN };
+  const statuses = [];
+  for (let i = 0; i < 61; i++) statuses.push((await call("/api/auth/login/options", { method: "POST", body: {}, headers: from })).status);
+  assert.equal(statuses.filter((s) => s === 200).length, 60);
+  assert.equal(statuses.at(-1), 429);
+  assert.equal((await call("/api/auth/device/login/options", { method: "POST", body: {}, headers: { "CF-Connecting-IP": "8.8.4.4" } })).status, 200);
+});
