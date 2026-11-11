@@ -330,6 +330,9 @@
 "hosted.confirmBody" = "Cada pago que tu historial no resuelve se envía al servidor de Harina y de ahí al modelo de decisión Clef de Cloudflare, que no guarda los datos. Se envía el comercio, el monto, tus categorías y tus últimos 40 pares «comercio: categoría». Nada más: ni notas, ni tarjetas, ni fechas. Es IA y puedes apagarlo cuando quieras.";
 "hosted.confirm" = "Activar";
 "hosted.error" = "No se pudo cambiar. Revisa tu conexión y vuelve a intentar.";
+"hosted.threshold" = "Categorizar solo desde";
+"hosted.thresholdHelp" = "La seguridad que necesita el modelo para poner la categoría por su cuenta. Más bajo: categoriza más pagos y se equivoca más. Debajo de este valor, la categoría queda como sugerencia en «Por revisar».";
+"hosted.thresholdReset" = "Volver a 50 %";
 "ai.unsupported" = "Apple Intelligence necesita iOS 26 o más reciente. Harina aprende solo de tu historial.";
 
 "settings.notify" = "Avisarme para categorizar cada pago";

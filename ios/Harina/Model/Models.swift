@@ -299,6 +299,12 @@ enum AppSettings {
         get { defaults.bool(forKey: "hostedDecider") }
         set { defaults.set(newValue, forKey: "hostedDecider") }
     }
+    /// From what confidence the hosted model assigns a category on its own (each person sets it on their iPhone).
+    static let defaultHostedThreshold = 0.5
+    static var hostedThreshold: Double {
+        get { (defaults.object(forKey: "hostedThreshold") as? Double).map { min(0.95, max(0.3, $0)) } ?? defaultHostedThreshold }
+        set { defaults.set(newValue, forKey: "hostedThreshold") }
+    }
     static var onboarded: Bool {
         get { defaults.bool(forKey: "onboarded") }
         set { defaults.set(newValue, forKey: "onboarded") }

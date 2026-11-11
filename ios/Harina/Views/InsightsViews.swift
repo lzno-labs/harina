@@ -83,15 +83,10 @@ enum Smart {
                   let h = await SyncService.shared.hostedCategory(merchant: dto.merchant, amountMinor: dto.amount_minor, currency: dto.currency),
                   brain.category(h.id) != nil {
             // Devices without Apple Intelligence, with the person's consent (docs/design/hosted-decision-model.md).
-            pick(h.id, .hosted, sure: h.confidence >= hostedActAt)
+            pick(h.id, .hosted, sure: h.confidence >= AppSettings.hostedThreshold)
         }
         return d
     }
-
-    /// Hosted answers at or above this confidence assign on their own; below, they are a suggestion.
-    /// Measured on harina.lzno.app (2026-11-11): Clef-flash gives 0.7 to 0.9 to clear merchants
-    /// (a gas station, Netflix, Uber, McDonalds) and stays well below for unclear ones.
-    static let hostedActAt = 0.7
 
     /// The category to suggest in «Por revisar» when a decision was not sure enough to assign.
     static func suggestion(_ d: Decision) -> String? {
@@ -243,6 +238,9 @@ struct AutoCategorySection: View {
     @AppStorage("autoCategory") private var enabled = true
     @AppStorage("appleIntelligence") private var useAI = true
     @AppStorage("hostedDecider") private var hosted = false
+    /// Hosted answers at or above this confidence assign on their own; below, they are a suggestion
+    /// in «Por revisar» (docs/design/hosted-decision-model.md).
+    @AppStorage("hostedThreshold") private var hostedThreshold = AppSettings.defaultHostedThreshold
     @State private var decider: DeciderStatus?
     @State private var askConsent = false
     @State private var busy = false
@@ -299,6 +297,19 @@ struct AutoCategorySection: View {
                     Text("hosted.confirmBody")
                 }
                 if failed { Text("hosted.error").font(.footnote).foregroundStyle(Theme.warn) }
+                if hosted {
+                    VStack(alignment: .leading, spacing: 6) {
+                        LabeledContent("hosted.threshold") {
+                            Text(verbatim: hostedThreshold.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit()
+                        }
+                        Slider(value: $hostedThreshold, in: 0.3...0.95, step: 0.05)
+                        Text("hosted.thresholdHelp").font(.footnote).foregroundStyle(.secondary)
+                        if hostedThreshold != AppSettings.defaultHostedThreshold {
+                            Button("hosted.thresholdReset") { hostedThreshold = AppSettings.defaultHostedThreshold }.font(.footnote)
+                        }
+                    }
+                    .disabled(!enabled)
+                }
             }
             LabeledContent("auto.history") {
                 Text(verbatim: cal.cases > 0 ? String(localized: "auto.historyValue \(pct(cal.accuracy)) \(cal.cases)") : L("auto.learning"))
