@@ -5,7 +5,6 @@ import { linkCode, normalizeLinkCode, randomToken, sha256 } from "./crypto.js";
 import { newSpaceStatements, PeopleError } from "./people.js";
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-export const MAX_INVITE_FAILURES = 10;
 export const MAX_SPACES_PER_USER = 20;
 
 const cleanName = (name) => (typeof name === "string" && name.trim() ? name.trim().slice(0, 60) : null);
@@ -87,19 +86,11 @@ export async function createInvite(db, userId, spaceId) {
   return { code, expiresAt: Date.now() + INVITE_TTL_MS };
 }
 
-/** Joins the space of a one-time invite. Too many wrong codes void every open invite. */
+/** Joins the space of a one-time invite. Wrong codes are limited per IP by the caller (src/limits.js). */
 export async function acceptInvite(db, userId, { code }) {
   const hash = await sha256(`invite:${normalizeLinkCode(code)}`);
   const row = await db.first("SELECT * FROM invites WHERE code_hash = ?", [hash]);
-  if (!row || row.expires_at < Date.now()) {
-    await db.run("INSERT INTO meta (key, value) VALUES ('invite_failures', 1) ON CONFLICT (key) DO UPDATE SET value = value + 1");
-    const f = await db.first("SELECT value FROM meta WHERE key = 'invite_failures'");
-    if (f.value >= MAX_INVITE_FAILURES) {
-      await db.run("DELETE FROM invites");
-      await db.run("UPDATE meta SET value = 0 WHERE key = 'invite_failures'");
-    }
-    throw new PeopleError("invalid_invite", 400);
-  }
+  if (!row || row.expires_at < Date.now()) throw new PeopleError("invalid_invite", 400);
   await db.run("DELETE FROM invites WHERE code_hash = ?", [hash]);
   const space = await db.first("SELECT id, name FROM spaces WHERE id = ?", [row.space_id]);
   if (!space) throw new PeopleError("invalid_invite", 400);

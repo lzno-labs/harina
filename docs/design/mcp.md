@@ -1,6 +1,6 @@
 # Design: use harina from AI assistants (remote MCP server)
 
-- **Issue:** owner request, 2026-11-05; PRD change in `lzno-labs/empresa` (harina 1.2)
+- **Issue:** owner request, 2026-11-05; scope approved by the owner (harina 1.2)
 - **Status:** Approved by the owner in chat; PRD change pending merge
 - **Author:** owner session (claude)
 - **Touches:** data (leaves to the person's assistant with consent), security (OAuth), AI (the assistant is external)

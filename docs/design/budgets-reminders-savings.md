@@ -1,7 +1,7 @@
 # Envelopes, reminders, subscription alerts and savings
 
 Status: proposed, 2026-11-10 (owner asked for the four at once). Extends ADR-0002 (sync) and
-ADR-0006 (spaces). PRD change: lzno-labs/empresa (owner).
+ADR-0006 (spaces). Scope approved by the owner.
 
 ## Goals
 

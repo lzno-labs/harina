@@ -94,11 +94,18 @@ test("iPhone linking: one-time code, bearer token, revocation", async () => {
   assert.equal((await call("/api/sync?since=0", { headers: bearer })).status, 401);
 });
 
-test("too many wrong link codes void the open code", async () => {
+test("wrong link codes are limited per IP and never void someone else's code", async () => {
   const { call, login } = await setup();
   const h = await login();
   const { code } = await (await call("/api/devices/link-code", { method: "POST", body: {}, headers: h })).json();
-  for (let i = 0; i < 5; i++) await call("/api/devices/link", { method: "POST", body: { code: `WRNG-000${i}` } });
-  const r = await call("/api/devices/link", { method: "POST", body: { code } });
-  assert.equal((await r.json()).error, "invalid_link_code");
+  const from = (ip) => ({ "CF-Connecting-IP": ip });
+  const statuses = [];
+  for (let i = 0; i < 11; i++) {
+    statuses.push((await call("/api/devices/link", { method: "POST", body: { code: `WRNG-00${String(i).padStart(2, "0")}` }, headers: from("6.6.6.6") })).status);
+  }
+  assert.deepEqual(statuses, [...Array(10).fill(400), 429]);
+  // The guessing IP is refused even with a right code; the owner's code still works from elsewhere.
+  assert.equal((await call("/api/devices/link", { method: "POST", body: { code }, headers: from("6.6.6.6") })).status, 429);
+  const ok = await call("/api/devices/link", { method: "POST", body: { code }, headers: from("7.7.7.7") });
+  assert.equal(ok.status, 200);
 });

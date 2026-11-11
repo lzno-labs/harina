@@ -1,6 +1,6 @@
 # Design: categorize from the notification, and add movements with Siri
 
-- **Issue:** owner request, 2026-11-06; PRD change in `lzno-labs/empresa` (harina 1.3)
+- **Issue:** owner request, 2026-11-06; scope approved by the owner (harina 1.3)
 - **Status:** Approved by the owner in chat; PRD change pending merge
 - **Author:** owner session (claude)
 - **Touches:** data (new movements), money (amounts by voice)
