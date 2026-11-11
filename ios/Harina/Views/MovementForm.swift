@@ -307,12 +307,18 @@ struct MovementForm: View {
             let space = m.space
             Task {
                 let decision = await Smart.categorize(m.dto, brain: Smart.brain(context, space: space))
-                guard decision.band == .act, let id = decision.categoryId, m.categoryId == nil else { return }
-                m.categoryId = id
-                m.categoryAuto = 1
-                m.touch()
-                try? context.save()
-                await sync.sync()
+                guard m.categoryId == nil else { return }
+                if decision.band == .act, let id = decision.categoryId {
+                    m.categoryId = id
+                    m.categoryAuto = 1
+                    m.touch()
+                    try? context.save()
+                    await sync.sync()
+                } else if let id = Smart.suggestion(decision) {
+                    // Not sure enough: it waits in «Por revisar» with this category first.
+                    m.suggestedCategoryId = id
+                    try? context.save()
+                }
             }
         }
     }

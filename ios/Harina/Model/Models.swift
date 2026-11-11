@@ -30,6 +30,9 @@ final class Movement {
     var createdBy: String?
     /// Savings pot: a deposit, a withdrawal, or an expense paid from it.
     var potId: String?
+    /// Likely category from Apple Intelligence or the hosted model when it was not sure enough to
+    /// assign it: shown first with ✨ in «Por revisar». Only on this iPhone, never synced.
+    var suggestedCategoryId: String?
 
     init(_ dto: TransactionDTO, dirty: Bool) {
         space = Spaces.local(dto.space_id); createdBy = dto.created_by; potId = dto.pot_id

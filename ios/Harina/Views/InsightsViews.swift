@@ -17,11 +17,18 @@ struct Brain {
     func category(_ id: String?) -> CategoryItem? { categories.first { $0.id == id } }
 
     /// Categories ranked by the model for a payment, and the one to highlight (suggest or act band).
-    func ranking(for m: Movement) -> (best: CategoryItem?, ranked: [CategoryItem]) {
+    /// `suggested`: what Apple Intelligence or the hosted model proposed when the payment arrived;
+    /// it goes first, ahead of the history's own guess.
+    func ranking(for m: Movement, suggested: String? = nil) -> (best: CategoryItem?, ranked: [CategoryItem]) {
         let d = model.decide(calibration, DecisionState(m.dto))
-        let ranked = d.ranked.compactMap { r in categories.first { $0.id == r.id } }
+        var ranked = d.ranked.compactMap { r in categories.first { $0.id == r.id } }
+        var best = d.band == .ask ? nil : category(d.categoryId)
+        if let s = category(suggested) {
+            ranked = [s] + ranked.filter { $0.id != s.id }
+            best = s
+        }
         let rest = categories.filter { c in !ranked.contains { $0.id == c.id } }.sorted { $0.displayName < $1.displayName }
-        return (d.band == .ask ? nil : category(d.categoryId), ranked + rest)
+        return (best, ranked + rest)
     }
 }
 
@@ -82,7 +89,14 @@ enum Smart {
     }
 
     /// Hosted answers at or above this confidence assign on their own; below, they are a suggestion.
-    static let hostedActAt = 0.9
+    /// Measured on harina.lzno.app (2026-11-11): Clef-flash gives 0.7 to 0.9 to clear merchants
+    /// (a gas station, Netflix, Uber, McDonalds) and stays well below for unclear ones.
+    static let hostedActAt = 0.7
+
+    /// The category to suggest in «Por revisar» when a decision was not sure enough to assign.
+    static func suggestion(_ d: Decision) -> String? {
+        d.band == .ask ? nil : d.categoryId
+    }
 
     /// The decision model of one space: each space learns from its own movements and categories.
     @MainActor

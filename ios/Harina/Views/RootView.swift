@@ -740,7 +740,7 @@ struct ReviewView: View {
                     Text("review.intro").font(.subheadline).foregroundStyle(.secondary)
                     ForEach(pending) { m in
                         // The decision model ranks the categories; the best one is highlighted when it is likely.
-                        let ranking = m.needsReview ? (best: CategoryItem?.none, ranked: sorted) : brain.ranking(for: m)
+                        let ranking = m.needsReview ? (best: CategoryItem?.none, ranked: sorted) : brain.ranking(for: m, suggested: m.suggestedCategoryId)
                         let suggestion = ranking.best
                         VStack(alignment: .leading, spacing: 12) {
                             NavigationLink { MovementForm(movement: m) } label: {

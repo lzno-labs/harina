@@ -21,9 +21,12 @@ categorized without asking, and few are corrected (Settings, «En uso real»).
    - `state`: the merchant, the amount, and up to 40 recent «merchant: category» pairs the person
      chose (no notes, cards, dates or other fields).
    It returns `{ category_id, confidence }`.
-5. The phone acts when `confidence >= 0.9` (assigns, marked ✨, `category_auto = 1`); otherwise it
-   puts that category first in the notification. The threshold is a starting point and is reviewed
-   with the first week's corrections.
+5. The phone acts when `confidence >= 0.7` (assigns, marked ✨, `category_auto = 1`); otherwise it
+   puts that category first in the notification and in «Por revisar» (kept on the phone only, never
+   synced). The first threshold, 0.9, never acted: on 2026-11-11 Clef-flash gave 0.73 to 0.88 to
+   clear merchants (a gas station, Netflix, Uber, McDonalds), 0.33 to 0.56 to correct but less
+   obvious ones, and 0.04 to one it could not place. 0.7 is reviewed with the corrections recorded
+   as `category_auto = 2`.
 
 ## Consent and disclosure (AGENTS.md §8)
 
