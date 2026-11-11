@@ -8,6 +8,8 @@ struct MovementForm: View {
     let movement: Movement?
     /// A reminder being paid («Ya pagué»): fills in the new movement.
     var prefill: ReminderDTO? = nil
+    /// The «Anotar» tab: called after a new movement is saved, so the screen can move on and confirm it.
+    var onSaved: ((Movement) -> Void)? = nil
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sync: SyncService
@@ -37,7 +39,9 @@ struct MovementForm: View {
     @Query(filter: #Predicate<PotItem> { $0.deleted == false }) private var allPots: [PotItem]
     @State private var saved = false
     @State private var confirmDelete = false
-    @FocusState private var amountFocused: Bool
+    /// Which field has the keyboard; the keyboard bar moves between them and hides it.
+    private enum Field: Hashable { case amount, merchant, note }
+    @FocusState private var focus: Field?
     /// Built once per screen: the model is retrained from all labels, so not on every keystroke.
     @State private var brain: Brain?
 
@@ -82,7 +86,7 @@ struct MovementForm: View {
                         .font(.system(size: 56, weight: .heavy))
                         .monospacedDigit()
                         .minimumScaleFactor(0.5)
-                        .focused($amountFocused)
+                        .focused($focus, equals: .amount)
                         .foregroundStyle(kind == "income" ? Theme.earn : Color.primary)
                     if let raw = movement?.rawAmount {
                         Text("review.rawAmount \(raw)").font(.caption).foregroundStyle(.secondary)
@@ -93,6 +97,9 @@ struct MovementForm: View {
 
                 field("form.merchant") {
                     TextField("form.merchant", text: $merchant)
+                        .focused($focus, equals: .merchant)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .note }
                         .onChange(of: merchant) { _, _ in preselect() }
                         .padding(13)
                         .background(Theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -158,6 +165,9 @@ struct MovementForm: View {
 
                 field("form.note") {
                     TextField("form.note", text: $note)
+                        .focused($focus, equals: .note)
+                        .submitLabel(.done)
+                        .onSubmit { focus = nil }
                         .padding(13)
                         .background(Theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
@@ -186,6 +196,14 @@ struct MovementForm: View {
         // The summary hides its navigation bar; the editor always shows it (back, and delete).
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
+            // The decimal pad has no return key: «Siguiente» goes on to the merchant, «Listo» hides it.
+            ToolbarItemGroup(placement: .keyboard) {
+                if focus == .amount {
+                    Button("form.next") { focus = .merchant }
+                }
+                Spacer()
+                Button("app.done") { focus = nil }.fontWeight(.semibold)
+            }
             if movement != nil {
                 if let m = movement, sync.spaces.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -217,7 +235,7 @@ struct MovementForm: View {
             Button("form.delete", role: .destructive) {
                 movement?.deleted = true
                 movement?.touch()
-                finish()
+                finish(nil)
             }
         }
         .sensoryFeedback(.success, trigger: saved)
@@ -243,7 +261,7 @@ struct MovementForm: View {
                 accountId = p.account_id
                 if let a = p.amount_minor { amount = Formatting.editable(a, currency) }
             }
-            amountFocused = prefill?.amount_minor == nil
+            if prefill?.amount_minor == nil { focus = .amount }
             return
         }
         potId = m.potId
@@ -282,7 +300,7 @@ struct MovementForm: View {
         m.needsReview = false
         m.touch()
         let needsCategory = movement == nil && categoryId == nil && kind == "expense" && AppSettings.autoCategory
-        finish()
+        finish(movement == nil ? m : nil)
         // Nothing chosen: the same steps as an Apple Pay payment (history, then Apple Intelligence or the
         // hosted model if the person turned it on). Sure: it is set with ✨; otherwise it waits in «Por revisar».
         if needsCategory {
@@ -314,15 +332,18 @@ struct MovementForm: View {
         }
     }
 
-    private func finish() {
+    /// `new`: the movement just created, if any.
+    private func finish(_ new: Movement?) {
         try? context.save()
         saved.toggle()
+        focus = nil
         Task { await sync.sync() }
-        if movement != nil || prefill != nil {
+        if movement != nil || prefill != nil || onSaved == nil {
             dismiss()
         } else {
-            amount = ""; merchant = ""; note = ""; categoryId = nil; autoPicked = false; date = Date()
-            amountFocused = true
+            // The «Anotar» tab: clear it for next time and let the tab bar take the person back.
+            amount = ""; merchant = ""; note = ""; categoryId = nil; autoPicked = false; date = Date(); potId = nil
+            if let new { onSaved?(new) }
         }
     }
 }

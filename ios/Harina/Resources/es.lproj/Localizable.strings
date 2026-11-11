@@ -532,3 +532,9 @@
 "passkey.warning.textWeb" = "Hoy solo este iPhone puede abrir tu cuenta. Abre la web en la computadora con un código y crea ahí tu llave de acceso.";
 "passkey.create" = "Crear llave de acceso";
 "passkey.createFailed" = "No se pudo crear la llave de acceso.";
+
+/* Manual entry: keyboard bar and confirmation after saving */
+"form.next" = "Siguiente";
+"form.savedExpense %@" = "Gasto guardado: %@";
+"form.savedIncome %@" = "Ingreso guardado: %@";
+"form.undo" = "Deshacer";

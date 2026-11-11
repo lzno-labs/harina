@@ -9,6 +9,11 @@ struct RootView: View {
     @AppStorage("space") private var spaceM = ""
     private var movements: [Movement] { allMovements.inSpace(Spaces.valid(spaceM)) }
     @State private var tab = 0
+    /// The tab to go back to after saving from «Anotar».
+    @State private var lastTab = 0
+    /// The movement just saved from «Anotar», confirmed with a banner that can undo it.
+    @State private var justSaved: Movement?
+    @Environment(\.modelContext) private var context
     @State private var celebrate: Movement?
     @AppStorage("firstCaptureSeen") private var firstCaptureSeen = false
     /// Set by a notification ("Otra…" or a tap) to open "Por revisar".
@@ -31,7 +36,14 @@ struct RootView: View {
             NavigationStack { MovementsView() }
                 .tabItem { Label("tab.movements", systemImage: "list.bullet") }
                 .tag(1)
-            NavigationStack { MovementForm(movement: nil) }
+            NavigationStack {
+                MovementForm(movement: nil) { m in
+                    withAnimation(.snappy) {
+                        justSaved = m
+                        tab = lastTab
+                    }
+                }
+            }
                 .tabItem { Label("tab.add", systemImage: "plus.circle.fill") }
                 .tag(2)
             NavigationStack { ReviewView() }
@@ -43,6 +55,25 @@ struct RootView: View {
                 .tag(4)
         }
         .tint(Color(hex: 0xFF4F6D))
+        .overlay(alignment: .bottom) {
+            if let m = justSaved {
+                SavedBanner(movement: m) {
+                    m.deleted = true
+                    m.touch()
+                    try? context.save()
+                    Task { await SyncService.shared.sync() }
+                    withAnimation(.snappy) { justSaved = nil }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 62)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task(id: m.id) {
+                    try? await Task.sleep(for: .seconds(4))
+                    withAnimation(.snappy) { if justSaved?.id == m.id { justSaved = nil } }
+                }
+            }
+        }
+        .onChange(of: tab) { _, new in if new != 2 { lastTab = new } }
         .onAppear {
             checkFirstCapture()
             if openTab >= 0 { tab = openTab; openTab = -1 }
@@ -52,6 +83,31 @@ struct RootView: View {
         }
         .onChange(of: applePayCount) { _, _ in checkFirstCapture() }
         .sheet(item: $celebrate) { FirstCaptureView(movement: $0).environmentObject(SyncService.shared) }
+    }
+}
+
+/// Confirms a movement saved from «Anotar», with a way to undo it.
+struct SavedBanner: View {
+    let movement: Movement
+    let undo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Theme.earn)
+            VStack(alignment: .leading, spacing: 2) {
+                let amount = Formatting.money(movement.amountMinor, movement.currency)
+                Group {
+                    if movement.kind == "income" { Text("form.savedIncome \(amount)") } else { Text("form.savedExpense \(amount)") }
+                }
+                .font(.subheadline.weight(.semibold))
+                if let merchant = movement.merchant { Text(verbatim: merchant).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+            }
+            Spacer(minLength: 8)
+            Button("form.undo", action: undo).font(.subheadline.weight(.bold))
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
     }
 }
 
