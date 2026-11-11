@@ -91,13 +91,10 @@ function icon(name) {
   return s("svg", { class: "icon", viewBox: "0 0 24 24", "aria-hidden": "true" }, s("path", { d: ICONS[name] }));
 }
 
+/** The app icon, the same as the iPhone's: a brown circle on cream (public/icon.svg). */
 function logo() {
-  const g = s("linearGradient", { id: "lg", x1: "0", y1: "0", x2: "1", y2: "1" },
-    s("stop", { offset: "0", "stop-color": "#ff9a3c" }), s("stop", { offset: ".52", "stop-color": "#ff4f6d" }), s("stop", { offset: "1", "stop-color": "#8b5cf6" }));
-  const leaf = (cx, cy, rot) => s("ellipse", { cx, cy, rx: "4", ry: "6.6", transform: `rotate(${rot} ${cx} ${cy})` });
-  return s("svg", { viewBox: "0 0 64 64", "aria-hidden": "true" }, s("defs", {}, g), s("rect", { width: "64", height: "64", rx: "18", fill: "url(#lg)" }),
-    s("g", { fill: "#fff" }, s("path", { d: "M32 50V22", stroke: "#fff", "stroke-width": "3.5", "stroke-linecap": "round" }),
-      s("ellipse", { cx: "32", cy: "16", rx: "4.2", ry: "7" }), leaf(25, 27, -38), leaf(39, 27, 38), leaf(25, 38, -38), leaf(39, 38, 38)));
+  return s("svg", { viewBox: "0 0 64 64", "aria-hidden": "true" },
+    s("rect", { width: "64", height: "64", rx: "14", fill: "#fbfaf7" }), s("circle", { cx: "32", cy: "32", r: "18.75", fill: "#8a5a12" }));
 }
 
 function toast(text) {
