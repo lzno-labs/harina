@@ -531,3 +531,12 @@ dialog.sheet::backdrop { background: rgba(5, 6, 12, 0.55); backdrop-filter: blur
 .nudge p { margin: 0 0 12px; }
 .nudge-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .nudge-actions .btn.primary { width: auto; padding: 0 18px; }
+
+/* Editors in a sheet: envelopes, savings, reminders and cards */
+.check-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; font-weight: 600; cursor: pointer; }
+.check-row input { width: 20px; height: 20px; accent-color: #ff4f6d; flex: none; }
+.field small.muted { font-size: 12.5px; }
+.tappable { cursor: pointer; border-radius: 12px; }
+.tappable:hover { background: var(--surface-2); }
+.tappable:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 2px; }
+

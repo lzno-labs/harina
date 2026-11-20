@@ -109,6 +109,7 @@ struct BudgetsCard: View {
     let movements: [Movement]
     @Query(filter: #Predicate<BudgetItem> { $0.deleted == false }) private var all: [BudgetItem]
     @AppStorage("space") private var space = ""
+    @State private var editing: BudgetItem?
 
     var body: some View {
         let list = all.inSpace(Spaces.valid(space)).filter { $0.currency == currency }
@@ -120,9 +121,13 @@ struct BudgetsCard: View {
                     Spacer()
                     NavigationLink("month.seeAll") { BudgetsView() }.font(.subheadline.weight(.semibold))
                 }
-                ForEach(list, id: \.uid) { b in BudgetRow(budget: b, state: MoneyTools.budget(b.dto, txs, month: MoneyTools.month(Date()))) }
+                ForEach(list, id: \.uid) { b in
+                    BudgetRow(budget: b, state: MoneyTools.budget(b.dto, txs, month: MoneyTools.month(Date())))
+                        .tapToEdit { editing = b }
+                }
             }
             .card()
+            .sheet(item: $editing) { b in NavigationStack { BudgetForm(budget: b) } }
         }
     }
 }
@@ -154,6 +159,7 @@ struct PotsCard: View {
     let movements: [Movement]
     @Query(filter: #Predicate<PotItem> { $0.deleted == false }) private var all: [PotItem]
     @AppStorage("space") private var space = ""
+    @State private var editing: PotItem?
 
     var body: some View {
         let list = all.inSpace(Spaces.valid(space))
@@ -165,9 +171,13 @@ struct PotsCard: View {
                     Spacer()
                     NavigationLink("month.seeAll") { PotsView() }.font(.subheadline.weight(.semibold))
                 }
-                ForEach(list, id: \.uid) { p in PotRow(pot: p, state: MoneyTools.pot(p.dto, txs)) }
+                ForEach(list, id: \.uid) { p in
+                    PotRow(pot: p, state: MoneyTools.pot(p.dto, txs))
+                        .tapToEdit { editing = p }
+                }
             }
             .card()
+            .sheet(item: $editing) { p in NavigationStack { PotForm(pot: p) } }
         }
     }
 }
@@ -194,12 +204,30 @@ struct PotRow: View {
 
 // MARK: - Management screens
 
+/// What is still missing before a form can be saved, shown under its fields (instead of a Save button
+/// that does nothing).
+private struct MissingNote: View {
+    let key: LocalizedStringKey?
+    var body: some View {
+        if let key { Text(key).foregroundStyle(Theme.warn) }
+    }
+}
+
+private func cleaned(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+/// A positive amount, or nil when the text is not one.
+private func positiveAmount(_ text: String, _ currency: String) -> Int64? {
+    guard let minor = AmountParser.parse(text, defaultCurrency: currency)?.minor, minor > 0 else { return nil }
+    return minor
+}
+
 struct BudgetsView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<BudgetItem> { $0.deleted == false }) private var all: [BudgetItem]
     @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
     @AppStorage("space") private var space = ""
     @State private var adding = false
+    @State private var editing: BudgetItem?
 
     var body: some View {
         let list = all.inSpace(Spaces.valid(space))
@@ -207,11 +235,14 @@ struct BudgetsView: View {
         List {
             Section {
                 if list.isEmpty { Text("budgets.empty").foregroundStyle(.secondary) }
-                ForEach(list, id: \.uid) { b in BudgetRow(budget: b, state: MoneyTools.budget(b.dto, txs, month: MoneyTools.month(Date()))) }
-                    .onDelete { idx in
-                        for i in idx { list[i].deleted = true; list[i].touch() }
-                        saveAndSync(context)
-                    }
+                ForEach(list, id: \.uid) { b in
+                    BudgetRow(budget: b, state: MoneyTools.budget(b.dto, txs, month: MoneyTools.month(Date())))
+                        .tapToEdit { editing = b }
+                }
+                .onDelete { idx in
+                    for i in idx { list[i].deleted = true; list[i].touch() }
+                    saveAndSync(context)
+                }
             } footer: {
                 Text("budgets.hint")
             }
@@ -219,29 +250,62 @@ struct BudgetsView: View {
         .navigationTitle("budgets.title")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { adding = true } label: { Label("budgets.create", systemImage: "plus") } } }
         .sheet(isPresented: $adding) { NavigationStack { BudgetForm() } }
+        .sheet(item: $editing) { b in NavigationStack { BudgetForm(budget: b) } }
     }
 }
 
+/// New or existing envelope: name, monthly limit and the categories that count. Editing also shows
+/// what went into it this month.
 struct BudgetForm: View {
+    let budget: BudgetItem?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
+    @Query(filter: #Predicate<Movement> { $0.deleted == false && $0.kind == "expense" }) private var expenses: [Movement]
     @AppStorage("space") private var space = ""
-    @State private var name = ""
-    @State private var amount = ""
-    @State private var currency = AppSettings.defaultCurrency
-    @State private var picked = Set<String>()
+    @State private var name: String
+    @State private var amount: String
+    @State private var currency: String
+    @State private var picked: Set<String>
+    @State private var confirmDelete = false
+
+    /// The server keeps at most this many categories per envelope.
+    private static let maxCategories = 20
+
+    init(budget: BudgetItem? = nil) {
+        self.budget = budget
+        _name = State(initialValue: budget?.name ?? "")
+        _amount = State(initialValue: budget.map { Formatting.editable($0.amountMinor, $0.currency) } ?? "")
+        _currency = State(initialValue: budget?.currency ?? AppSettings.defaultCurrency)
+        _picked = State(initialValue: Set(budget?.categoryIds ?? []))
+    }
+
+    private var spaceId: String { budget?.space ?? Spaces.valid(space) }
+    private var categories: [CategoryItem] { allCategories.inSpace(spaceId).sorted { $0.displayName < $1.displayName } }
+    /// The picked categories that still exist, in a stable order.
+    private var chosen: [String] { categories.map(\.id).filter { picked.contains($0) } }
+
+    private var missing: LocalizedStringKey? {
+        if cleaned(name).isEmpty { return "budgets.needName" }
+        if positiveAmount(amount, currency) == nil { return "budgets.needAmount" }
+        if chosen.isEmpty { return "budgets.needCategories" }
+        if chosen.count > Self.maxCategories { return "budgets.tooManyCategories" }
+        return nil
+    }
 
     var body: some View {
         Form {
-            TextField("budgets.name", text: $name)
-            HStack {
-                TextField("budgets.amount", text: $amount).keyboardType(.decimalPad)
-                Picker("form.currency", selection: $currency) { Text(verbatim: "CRC").tag("CRC"); Text(verbatim: "USD").tag("USD") }
-                    .labelsHidden()
+            Section {
+                TextField("budgets.name", text: $name)
+                HStack {
+                    TextField("budgets.amount", text: $amount).keyboardType(.decimalPad)
+                    CurrencyPicker(currency: $currency).labelsHidden().fixedSize()
+                }
+            } footer: {
+                MissingNote(key: missing)
             }
             Section("budgets.categories") {
-                ForEach(allCategories.inSpace(Spaces.valid(space)).sorted { $0.displayName < $1.displayName }, id: \.uid) { c in
+                ForEach(categories, id: \.uid) { c in
                     Button {
                         if picked.contains(c.id) { picked.remove(c.id) } else { picked.insert(c.id) }
                     } label: {
@@ -254,22 +318,54 @@ struct BudgetForm: View {
                     }
                 }
             }
-        }
-        .navigationTitle("budgets.new")
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("spaces.save") {
-                    guard let parsed = AmountParser.parse(amount, defaultCurrency: currency), parsed.minor > 0, !picked.isEmpty,
-                          !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    context.insert(BudgetItem(BudgetDTO(id: UUID().uuidString, name: String(name.trimmingCharacters(in: .whitespaces).prefix(100)),
-                                                        amount_minor: parsed.minor, currency: currency, category_ids: Array(picked),
-                                                        updated_at: SyncRules.now(), space_id: Spaces.wire(Spaces.valid(space))), dirty: true))
-                    saveAndSync(context)
-                    dismiss()
+            if let budget {
+                let month = MoneyTools.month(Date())
+                let ids = Set(budget.categoryIds)
+                let inside = expenses
+                    .filter { $0.space == budget.space && $0.currency == budget.currency && MoneyTools.month($0.occurredAt) == month && ids.contains($0.categoryId ?? "") }
+                    .sorted { $0.occurredAt > $1.occurredAt }
+                Section("budgets.thisMonth") {
+                    if inside.isEmpty { Text("budgets.nothingYet").foregroundStyle(.secondary) }
+                    ForEach(inside.prefix(50)) { m in MovementRow(movement: m, category: categories.first { $0.id == m.categoryId }) }
+                }
+                Section {
+                    Button("budgets.delete", role: .destructive) { confirmDelete = true }
                 }
             }
         }
+        .navigationTitle(budget == nil ? "budgets.new" : "budgets.edit")
+        .navigationBarTitleDisplayMode(.inline)
+        .keyboardDoneButton()
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("form.save", action: save).disabled(missing != nil) }
+        }
+        .confirmationDialog("budgets.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("form.delete", role: .destructive) {
+                budget?.deleted = true
+                budget?.touch()
+                saveAndSync(context)
+                dismiss()
+            }
+        }
+    }
+
+    private func save() {
+        guard missing == nil, let limit = positiveAmount(amount, currency) else { return }
+        let n = String(cleaned(name).prefix(100))
+        let dto = BudgetDTO(id: budget?.id ?? UUID().uuidString, name: n, amount_minor: limit, currency: currency, category_ids: chosen,
+                            updated_at: SyncRules.now(), space_id: Spaces.wire(spaceId))
+        if let b = budget {
+            b.name = n
+            b.amountMinor = limit
+            b.currency = currency
+            b.categoryIdsJSON = dto.category_ids
+            b.touch()
+        } else {
+            context.insert(BudgetItem(dto, dirty: true))
+        }
+        saveAndSync(context)
+        dismiss()
     }
 }
 
@@ -279,6 +375,7 @@ struct PotsView: View {
     @Query(filter: #Predicate<Movement> { $0.deleted == false }) private var movements: [Movement]
     @AppStorage("space") private var space = ""
     @State private var adding = false
+    @State private var editing: PotItem?
     @State private var moving: (pot: PotItem, kind: String)?
     @State private var amount = ""
 
@@ -294,10 +391,12 @@ struct PotsView: View {
                         HStack {
                             Button { amount = ""; moving = (p, "saving") } label: { Label("pots.deposit", systemImage: "arrow.down") }
                             Button { amount = ""; moving = (p, "withdrawal") } label: { Label("pots.withdraw", systemImage: "arrow.up") }
+                            Button { editing = p } label: { Label("form.edit", systemImage: "pencil") }
                         }
                         .buttonStyle(.bordered)
                         .font(.caption.weight(.semibold))
                     }
+                    .tapToEdit { editing = p }
                 }
                 .onDelete { idx in
                     for i in idx { list[i].deleted = true; list[i].touch() }
@@ -310,10 +409,11 @@ struct PotsView: View {
         .navigationTitle("pots.title")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { adding = true } label: { Label("pots.create", systemImage: "plus") } } }
         .sheet(isPresented: $adding) { NavigationStack { PotForm() } }
+        .sheet(item: $editing) { p in NavigationStack { PotForm(pot: p) } }
         .alert(Text(verbatim: moving.map { prompt(for: $0.pot, kind: $0.kind) } ?? ""),
                isPresented: Binding(get: { moving != nil }, set: { if !$0 { moving = nil } })) {
             TextField("form.amount", text: $amount).keyboardType(.decimalPad)
-            Button("spaces.save") { if let m = moving { record(m.pot, m.kind) } }
+            Button("form.save") { if let m = moving { record(m.pot, m.kind) } }
             Button("app.cancel", role: .cancel) {}
         }
     }
@@ -324,48 +424,106 @@ struct PotsView: View {
     }
 
     private func record(_ pot: PotItem, _ kind: String) {
-        guard let parsed = AmountParser.parse(amount, defaultCurrency: pot.currency), parsed.minor > 0 else { return }
-        context.insert(Movement(TransactionDTO(id: UUID().uuidString, kind: kind, amount_minor: parsed.minor, currency: pot.currency,
+        guard let minor = positiveAmount(amount, pot.currency) else { return }
+        context.insert(Movement(TransactionDTO(id: UUID().uuidString, kind: kind, amount_minor: minor, currency: pot.currency,
                                                merchant: pot.name, source: "manual", occurred_at: ISODate.string(Date()),
                                                updated_at: SyncRules.now(), space_id: Spaces.wire(pot.space), pot_id: pot.id), dirty: true))
         saveAndSync(context)
     }
 }
 
+/// New or existing savings pot: name, currency, optional goal and date. Editing also shows its
+/// deposits, withdrawals and the expenses paid from it.
 struct PotForm: View {
+    let pot: PotItem?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<Movement> { $0.deleted == false && $0.potId != nil }) private var potMovements: [Movement]
     @AppStorage("space") private var space = ""
-    @State private var name = ""
-    @State private var currency = AppSettings.defaultCurrency
-    @State private var goal = ""
-    @State private var hasDate = false
-    @State private var date = Date()
+    @State private var name: String
+    @State private var currency: String
+    @State private var goal: String
+    @State private var hasDate: Bool
+    @State private var date: Date
+    @State private var confirmDelete = false
+
+    init(pot: PotItem? = nil) {
+        self.pot = pot
+        _name = State(initialValue: pot?.name ?? "")
+        _currency = State(initialValue: pot?.currency ?? AppSettings.defaultCurrency)
+        _goal = State(initialValue: pot.flatMap { p in p.goalMinor.map { Formatting.editable($0, p.currency) } } ?? "")
+        _hasDate = State(initialValue: pot?.goalDate != nil)
+        _date = State(initialValue: pot?.goalDate.flatMap { ISODate.day(from: $0) } ?? Date())
+    }
+
+    private var history: [Movement] {
+        guard let pot else { return [] }
+        return potMovements.filter { $0.potId == pot.id && $0.space == pot.space }.sorted { $0.occurredAt > $1.occurredAt }
+    }
+
+    private var missing: LocalizedStringKey? {
+        if cleaned(name).isEmpty { return "pots.needName" }
+        if !cleaned(goal).isEmpty && positiveAmount(goal, currency) == nil { return "pots.badGoal" }
+        return nil
+    }
 
     var body: some View {
+        let entries = history
         Form {
-            TextField("pots.name", text: $name)
-            Picker("form.currency", selection: $currency) { Text(verbatim: "CRC").tag("CRC"); Text(verbatim: "USD").tag("USD") }
-            TextField("pots.goalOptional", text: $goal).keyboardType(.decimalPad)
-            Toggle("pots.goalDate", isOn: $hasDate)
-            if hasDate { DatePicker("pots.goalDate", selection: $date, displayedComponents: .date) }
-        }
-        .navigationTitle("pots.new")
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("spaces.save") {
-                    let n = name.trimmingCharacters(in: .whitespaces)
-                    guard !n.isEmpty else { return }
-                    let goalMinor = goal.isEmpty ? nil : AmountParser.parse(goal, defaultCurrency: currency)?.minor
-                    let day = hasDate ? String(ISODate.string(date).prefix(10)) : nil
-                    context.insert(PotItem(PotDTO(id: UUID().uuidString, name: String(n.prefix(100)), currency: currency, goal_minor: goalMinor,
-                                                  goal_date: day, updated_at: SyncRules.now(), space_id: Spaces.wire(Spaces.valid(space))), dirty: true))
-                    saveAndSync(context)
-                    dismiss()
+            Section {
+                TextField("pots.name", text: $name)
+                CurrencyPicker(currency: $currency).disabled(!entries.isEmpty)
+                TextField("pots.goalOptional", text: $goal).keyboardType(.decimalPad)
+                Toggle("pots.goalDate", isOn: $hasDate)
+                if hasDate { DatePicker("pots.goalDate", selection: $date, displayedComponents: .date) }
+            } footer: {
+                if missing != nil { MissingNote(key: missing) } else if !entries.isEmpty { Text("pots.currencyLocked") }
+            }
+            if pot != nil {
+                Section("pots.history") {
+                    if entries.isEmpty { Text("pots.noHistory").foregroundStyle(.secondary) }
+                    ForEach(entries.prefix(50)) { m in MovementRow(movement: m, category: nil) }
+                }
+                Section {
+                    Button("pots.delete", role: .destructive) { confirmDelete = true }
                 }
             }
         }
+        .navigationTitle(pot == nil ? "pots.new" : "pots.edit")
+        .navigationBarTitleDisplayMode(.inline)
+        .keyboardDoneButton()
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("form.save", action: save).disabled(missing != nil) }
+        }
+        .confirmationDialog("pots.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("form.delete", role: .destructive) {
+                pot?.deleted = true
+                pot?.touch()
+                saveAndSync(context)
+                dismiss()
+            }
+        }
+    }
+
+    private func save() {
+        guard missing == nil else { return }
+        let n = String(cleaned(name).prefix(100))
+        let goalMinor = cleaned(goal).isEmpty ? nil : positiveAmount(goal, currency)
+        // The day where the person is, not the UTC day (a date picked in the evening would move).
+        let day = hasDate ? ISODate.day(date) : nil
+        if let p = pot {
+            p.name = n
+            p.currency = currency
+            p.goalMinor = goalMinor
+            p.goalDate = day
+            p.touch()
+        } else {
+            context.insert(PotItem(PotDTO(id: UUID().uuidString, name: n, currency: currency, goal_minor: goalMinor, goal_date: day,
+                                          updated_at: SyncRules.now(), space_id: Spaces.wire(Spaces.valid(space))), dirty: true))
+        }
+        saveAndSync(context)
+        dismiss()
     }
 }
 
@@ -374,6 +532,7 @@ struct RemindersView: View {
     @Query(filter: #Predicate<ReminderItem> { $0.deleted == false }) private var all: [ReminderItem]
     @AppStorage("space") private var space = ""
     @State private var adding = false
+    @State private var editing: ReminderItem?
     @State private var paying: ReminderItem?
 
     var body: some View {
@@ -381,11 +540,14 @@ struct RemindersView: View {
         List {
             Section {
                 if list.isEmpty { Text("reminders.empty").foregroundStyle(.secondary) }
-                ForEach(list, id: \.0.uid) { item in ReminderRow(reminder: item.0, state: item.1) { paying = item.0 } }
-                    .onDelete { idx in
-                        for i in idx { list[i].0.deleted = true; list[i].0.touch() }
-                        saveAndSync(context)
-                    }
+                ForEach(list, id: \.0.uid) { item in
+                    ReminderRow(reminder: item.0, state: item.1) { paying = item.0 }
+                        .tapToEdit { editing = item.0 }
+                }
+                .onDelete { idx in
+                    for i in idx { list[i].0.deleted = true; list[i].0.touch() }
+                    saveAndSync(context)
+                }
             } footer: {
                 Text("reminders.hint")
             }
@@ -393,46 +555,111 @@ struct RemindersView: View {
         .navigationTitle("reminders.title")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { adding = true } label: { Label("reminders.create", systemImage: "plus") } } }
         .sheet(isPresented: $adding) { NavigationStack { ReminderForm() } }
+        .sheet(item: $editing) { r in NavigationStack { ReminderForm(reminder: r) } }
         .sheet(item: $paying) { r in NavigationStack { MovementForm(movement: nil, prefill: r.dto) }.environmentObject(SyncService.shared) }
     }
 }
 
+/// New or existing reminder: what to pay, the day, an optional amount and category (they fill in
+/// «Ya pagué»). Editing can also undo «Ya pagué» for this month.
 struct ReminderForm: View {
+    let reminder: ReminderItem?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<CategoryItem> { $0.deleted == false }) private var allCategories: [CategoryItem]
     @AppStorage("space") private var space = ""
-    @State private var name = ""
-    @State private var day = Calendar.current.component(.day, from: Date())
-    @State private var amount = ""
-    @State private var currency = AppSettings.defaultCurrency
+    @State private var name: String
+    @State private var day: Int
+    @State private var amount: String
+    @State private var currency: String
+    @State private var categoryId: String?
+    @State private var paid: Bool
+    @State private var confirmDelete = false
+    private let month = MoneyTools.month(Date())
+
+    init(reminder: ReminderItem? = nil) {
+        self.reminder = reminder
+        _name = State(initialValue: reminder?.name ?? "")
+        _day = State(initialValue: reminder?.dayOfMonth ?? Calendar.current.component(.day, from: Date()))
+        _amount = State(initialValue: reminder.flatMap { r in r.amountMinor.map { Formatting.editable($0, r.currency ?? AppSettings.defaultCurrency) } } ?? "")
+        _currency = State(initialValue: reminder?.currency ?? AppSettings.defaultCurrency)
+        _categoryId = State(initialValue: reminder?.categoryId)
+        _paid = State(initialValue: reminder?.paidMonth == MoneyTools.month(Date()))
+    }
+
+    private var spaceId: String { reminder?.space ?? Spaces.valid(space) }
+    private var categories: [CategoryItem] { allCategories.inSpace(spaceId).sorted { $0.displayName < $1.displayName } }
+
+    private var missing: LocalizedStringKey? {
+        if cleaned(name).isEmpty { return "reminders.needName" }
+        if !cleaned(amount).isEmpty && positiveAmount(amount, currency) == nil { return "form.invalidAmount" }
+        return nil
+    }
 
     var body: some View {
         Form {
-            TextField("reminders.name", text: $name)
-            Stepper(value: $day, in: 1...31) { Text("reminders.dayValue \(day)") }
-            HStack {
-                TextField("reminders.amountOptional", text: $amount).keyboardType(.decimalPad)
-                Picker("form.currency", selection: $currency) { Text(verbatim: "CRC").tag("CRC"); Text(verbatim: "USD").tag("USD") }
-                    .labelsHidden()
+            Section {
+                TextField("reminders.name", text: $name)
+                Stepper(value: $day, in: 1...31) { Text("reminders.dayValue \(day)") }
+                HStack {
+                    TextField("reminders.amountOptional", text: $amount).keyboardType(.decimalPad)
+                    CurrencyPicker(currency: $currency).labelsHidden().fixedSize()
+                }
+                Picker("form.category", selection: $categoryId) {
+                    Text("category.none").tag(String?.none)
+                    ForEach(categories, id: \.uid) { c in Text(verbatim: c.displayName).tag(Optional(c.id)) }
+                }
+            } footer: {
+                if missing != nil { MissingNote(key: missing) } else { Text("reminders.categoryHint") }
             }
-        }
-        .navigationTitle("reminders.new")
-        .task { _ = await PaymentNotifier.requestPermission() }
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("spaces.save") {
-                    let n = name.trimmingCharacters(in: .whitespaces)
-                    guard !n.isEmpty else { return }
-                    let minor = amount.isEmpty ? nil : AmountParser.parse(amount, defaultCurrency: currency)?.minor
-                    context.insert(ReminderItem(ReminderDTO(id: UUID().uuidString, name: String(n.prefix(100)), amount_minor: minor,
-                                                            currency: minor == nil ? nil : currency, day_of_month: day,
-                                                            updated_at: SyncRules.now(), space_id: Spaces.wire(Spaces.valid(space))), dirty: true))
-                    saveAndSync(context)
-                    dismiss()
+            if reminder != nil {
+                Section {
+                    Toggle("reminders.paidThisMonth", isOn: $paid)
+                } footer: {
+                    Text("reminders.paidHint")
+                }
+                Section {
+                    Button("reminders.delete", role: .destructive) { confirmDelete = true }
                 }
             }
         }
+        .navigationTitle(reminder == nil ? "reminders.new" : "reminders.edit")
+        .navigationBarTitleDisplayMode(.inline)
+        .keyboardDoneButton()
+        .task { if reminder == nil { _ = await PaymentNotifier.requestPermission() } }
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("form.save", action: save).disabled(missing != nil) }
+        }
+        .confirmationDialog("reminders.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("form.delete", role: .destructive) {
+                reminder?.deleted = true
+                reminder?.touch()
+                saveAndSync(context)
+                dismiss()
+            }
+        }
+    }
+
+    private func save() {
+        guard missing == nil else { return }
+        let n = String(cleaned(name).prefix(100))
+        let minor = cleaned(amount).isEmpty ? nil : positiveAmount(amount, currency)
+        if let r = reminder {
+            r.name = n
+            r.dayOfMonth = day
+            r.amountMinor = minor
+            r.currency = minor == nil ? nil : currency
+            r.categoryId = categoryId
+            if paid { r.paidMonth = month } else if r.paidMonth == month { r.paidMonth = nil }
+            r.touch()
+        } else {
+            context.insert(ReminderItem(ReminderDTO(id: UUID().uuidString, name: n, amount_minor: minor, currency: minor == nil ? nil : currency,
+                                                    day_of_month: day, category_id: categoryId, updated_at: SyncRules.now(),
+                                                    space_id: Spaces.wire(spaceId)), dirty: true))
+        }
+        saveAndSync(context)
+        dismiss()
     }
 }
 

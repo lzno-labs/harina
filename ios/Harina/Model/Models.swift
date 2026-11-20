@@ -145,6 +145,7 @@ final class AccountItem {
     }
 
     var dto: AccountDTO { AccountDTO(id: id, name: name, card: card, updated_at: updatedAt, deleted: deleted ? 1 : 0, space_id: Spaces.wire(space)) }
+    func touch() { updatedAt = max(SyncRules.now(), updatedAt + 1); dirty = true }
 }
 
 // MARK: - Envelopes, reminders and savings pots (docs/design/budgets-reminders-savings.md)

@@ -252,8 +252,7 @@ struct CardsView: View {
     @EnvironmentObject private var sync: SyncService
     @Query(filter: #Predicate<AccountItem> { $0.deleted == false }, sort: \AccountItem.name) private var accounts: [AccountItem]
     @State private var adding = false
-    @State private var newName = ""
-    @State private var newCard = ""
+    @State private var editing: AccountItem?
 
     var body: some View {
         List {
@@ -276,10 +275,12 @@ struct CardsView: View {
                             }
                         }
                     }
+                    .tapToEdit { editing = a }
                 }
                 .onDelete { idx in
-                    for i in idx { accounts[i].deleted = true; accounts[i].updatedAt = SyncRules.now(); accounts[i].dirty = true }
-                    saveAndSync()
+                    for i in idx { accounts[i].deleted = true; accounts[i].touch() }
+                    try? context.save()
+                    Task { await sync.sync() }
                 }
             } footer: {
                 Text(accounts.isEmpty ? "accounts.empty" : "accounts.cardHint")
@@ -291,30 +292,79 @@ struct CardsView: View {
                 Button { adding = true } label: { Label("accounts.add", systemImage: "plus") }
             }
         }
-        .alert("accounts.add", isPresented: $adding) {
-            TextField("accounts.name", text: $newName)
-            TextField("accounts.card", text: $newCard)
-            Button("spaces.save") { add() }
-            Button("app.cancel", role: .cancel) { newName = ""; newCard = "" }
-        } message: {
-            Text("accounts.addHint")
+        .sheet(isPresented: $adding) { NavigationStack { AccountForm() }.environmentObject(sync) }
+        .sheet(item: $editing) { a in NavigationStack { AccountForm(account: a) }.environmentObject(sync) }
+    }
+}
+
+/// New or existing account: its name and the card name Wallet reports, which assigns Apple Pay
+/// payments to it.
+struct AccountForm: View {
+    let account: AccountItem?
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var sync: SyncService
+    @State private var name: String
+    @State private var card: String
+    @State private var confirmDelete = false
+
+    init(account: AccountItem? = nil) {
+        self.account = account
+        _name = State(initialValue: account?.name ?? "")
+        _card = State(initialValue: account?.card ?? "")
+    }
+
+    private var cleanName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("accounts.name", text: $name)
+                TextField("accounts.card", text: $card).autocorrectionDisabled()
+            } footer: {
+                if cleanName.isEmpty { Text("accounts.needName").foregroundStyle(Theme.warn) } else { Text("accounts.addHint") }
+            }
+            if account != nil {
+                Section {
+                    Button("accounts.delete", role: .destructive) { confirmDelete = true }
+                }
+            }
+        }
+        .navigationTitle(account == nil ? "accounts.add" : "accounts.edit")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("app.cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("form.save", action: save).disabled(cleanName.isEmpty) }
+        }
+        .confirmationDialog("accounts.confirmDelete", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("form.delete", role: .destructive) {
+                account?.deleted = true
+                account?.touch()
+                finish()
+            }
         }
     }
 
-    private func add() {
-        let name = newName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        let card = newCard.trimmingCharacters(in: .whitespaces)
-        context.insert(AccountItem(AccountDTO(id: UUID().uuidString, name: String(name.prefix(100)),
-                                              card: card.isEmpty ? nil : String(card.prefix(100)), updated_at: SyncRules.now(),
-                                              space_id: Spaces.wire(Spaces.current)), dirty: true))
-        newName = ""; newCard = ""
-        saveAndSync()
+    private func save() {
+        guard !cleanName.isEmpty else { return }
+        let n = String(cleanName.prefix(100))
+        let c = card.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cardValue = c.isEmpty ? nil : String(c.prefix(100))
+        if let a = account {
+            a.name = n
+            a.card = cardValue
+            a.touch()
+        } else {
+            context.insert(AccountItem(AccountDTO(id: UUID().uuidString, name: n, card: cardValue, updated_at: SyncRules.now(),
+                                                  space_id: Spaces.wire(Spaces.current)), dirty: true))
+        }
+        finish()
     }
 
-    private func saveAndSync() {
+    private func finish() {
         try? context.save()
         Task { await sync.sync() }
+        dismiss()
     }
 }
 
@@ -327,6 +377,19 @@ struct CaptureSettingsView: View {
         Form {
             Section {
                 NavigationLink("settings.automationHelp") { AutomationHelpView() }
+            }
+            Section {
+                NavigationLink { CaptureLogView() } label: {
+                    LabeledContent("capturelog.title") {
+                        if let last = CaptureLog.runs.first?.startedAt {
+                            Text("capturelog.last \(last.formatted(.relative(presentation: .named)))")
+                        } else {
+                            Text("capturelog.none")
+                        }
+                    }
+                }
+            } footer: {
+                Text("capturelog.footer")
             }
             Section {
                 Toggle("settings.notify", isOn: $notify)
