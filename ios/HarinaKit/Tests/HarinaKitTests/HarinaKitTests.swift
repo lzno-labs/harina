@@ -308,5 +308,66 @@ final class DayTests: XCTestCase {
         let back = ISODate.day(from: "2027-03-01", calendar: cal)!
         XCTAssertEqual(ISODate.day(back, calendar: cal), "2027-03-01")
         XCTAssertNil(ISODate.day(from: "marzo", calendar: cal))
+
+final class CaptureLogTests: XCTestCase {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testStatusFollowsTheSteps() {
+        var run = CaptureRun(startedAt: t0, merchant: "Ola Ola", amountText: "₡33 200,00", card: "Millas Plus")
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(5)), .running)
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(600)), .interrupted)
+
+        run.step = .saved
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(5)), .running)
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(600)), .saved)
+        XCTAssertTrue(run.cutShort(now: t0.addingTimeInterval(600)))
+
+        run.step = .done
+        run.finishedAt = t0.addingTimeInterval(1.5)
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(600)), .saved)
+        XCTAssertFalse(run.cutShort(now: t0.addingTimeInterval(600)))
+        XCTAssertEqual(run.duration, 1.5)
+
+        run.needsReview = true
+        XCTAssertEqual(run.status(now: t0), .review)
+        run.step = .failed
+        XCTAssertEqual(run.status(now: t0), .failed)
+    }
+
+    func testKeepsTheNewestRunsFirst() {
+        var runs: [CaptureRun] = []
+        for i in 0..<(CaptureLogRules.maxRuns + 5) {
+            runs = CaptureLogRules.adding(CaptureRun(id: "r\(i)", startedAt: t0, merchant: nil, amountText: nil, card: nil), to: runs)
+        }
+        XCTAssertEqual(runs.count, CaptureLogRules.maxRuns)
+        XCTAssertEqual(runs.first?.id, "r\(CaptureLogRules.maxRuns + 4)")
+        runs = CaptureLogRules.updating("r10", in: runs) { $0.step = .failed; $0.error = "boom" }
+        XCTAssertEqual(runs.first { $0.id == "r10" }?.error, "boom")
+        XCTAssertEqual(runs.filter { $0.step == .failed }.count, 1)
+    }
+
+    func testSummaryCountsRecentRuns() {
+        let now = t0.addingTimeInterval(3600)
+        var saved = CaptureRun(id: "a", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        saved.step = .done
+        var review = CaptureRun(id: "b", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        review.step = .done
+        review.needsReview = true
+        var failed = CaptureRun(id: "c", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        failed.step = .failed
+        let stopped = CaptureRun(id: "d", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        let running = CaptureRun(id: "e", startedAt: now, merchant: nil, amountText: nil, card: nil)
+        let old = CaptureRun(id: "f", startedAt: t0.addingTimeInterval(-90 * 86400), merchant: nil, amountText: nil, card: nil)
+        let s = CaptureLogRules.summary([saved, review, failed, stopped, running, old], since: t0.addingTimeInterval(-30 * 86400), now: now)
+        XCTAssertEqual(s, CaptureLogRules.Summary(saved: 2, failed: 1, interrupted: 1))
+    }
+
+    func testRoundTripsAsJSON() throws {
+        var run = CaptureRun(id: "x", startedAt: t0, merchant: String(repeating: "m", count: 500), amountText: "USD 1,516.17", card: "Visa")
+        run.step = .done
+        run.categorySource = "hosted"
+        XCTAssertEqual(run.merchant?.count, 200)
+        let back = try JSONDecoder().decode(CaptureRun.self, from: JSONEncoder().encode(run))
+        XCTAssertEqual(back, run)
     }
 }
