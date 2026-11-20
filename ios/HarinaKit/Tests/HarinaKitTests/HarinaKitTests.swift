@@ -373,3 +373,47 @@ final class CaptureLogTests: XCTestCase {
         XCTAssertEqual(back, run)
     }
 }
+
+final class SyncLimitsTests: XCTestCase {
+    func testClipsByUTF16WithoutSplittingCharacters() {
+        XCTAssertEqual(SyncLimits.clip("Automercado", 200), "Automercado")
+        let emoji = String(repeating: "😀", count: 150) // 300 UTF-16 code units
+        let clipped = SyncLimits.clip(emoji, 200)
+        XCTAssertEqual(clipped.utf16.count, 200)
+        XCTAssertEqual(clipped.count, 100)
+        // A decomposed «é» is one character of two code units: it is kept whole or left out.
+        let accents = String(repeating: "e\u{301}", count: 3)
+        XCTAssertEqual(SyncLimits.clip(accents, 3).utf16.count, 2)
+        XCTAssertNil(SyncLimits.clip(nil, 10))
+    }
+
+    func testRecordsAreClippedToTheServerLimits() {
+        let note = String(repeating: "👍🏽", count: 400) // 4 code units each
+        let t = TransactionDTO(id: "t", kind: "expense", amount_minor: 1, currency: "CRC", merchant: String(repeating: "m", count: 250),
+                               note: note, source: "manual", occurred_at: "2026-11-20T12:00:00.000Z", updated_at: 1).clipped()
+        XCTAssertEqual(t.merchant?.utf16.count, 200)
+        XCTAssertLessThanOrEqual(t.note?.utf16.count ?? 0, 1000)
+        XCTAssertEqual(AccountDTO(id: "a", name: String(repeating: "n", count: 101), updated_at: 1).clipped().name.count, 100)
+    }
+
+    func testChunksKeepOrderAndSize() {
+        let accounts = (0..<3).map { AccountDTO(id: "a\($0)", name: "A", updated_at: 1) }
+        let txs = (0..<5).map { TransactionDTO(id: "t\($0)", kind: "expense", amount_minor: 1, currency: "CRC", source: "manual",
+                                               occurred_at: "2026-11-20T12:00:00.000Z", updated_at: 1) }
+        let chunks = SyncRecords(accounts: accounts, transactions: txs).chunked(size: 4)
+        XCTAssertEqual(chunks.count, 2)
+        XCTAssertEqual(chunks[0].accounts.map(\.id), ["a0", "a1", "a2"])
+        XCTAssertEqual(chunks[0].transactions.map(\.id), ["t0"])
+        XCTAssertEqual(chunks[1].transactions.map(\.id), ["t1", "t2", "t3", "t4"])
+        XCTAssertTrue(SyncRecords().chunked(size: 4).isEmpty)
+    }
+
+    func testPushMessages() throws {
+        let body = try JSONEncoder().encode(PushRequest(changes: SyncRecords(), partial: true))
+        XCTAssertTrue(String(decoding: body, as: UTF8.self).contains("\"partial\":true"))
+        let old = try JSONDecoder().decode(PushResponse.self, from: Data(#"{"seq":3,"records":{}}"#.utf8))
+        XCTAssertNil(old.rejected)
+        let new = try JSONDecoder().decode(PushResponse.self, from: Data(#"{"seq":3,"records":{},"rejected":[{"entity":"transactions","id":"t","space_id":null,"error":"invalid_record","field":"note"}]}"#.utf8))
+        XCTAssertEqual(new.rejected, [RejectedChange(entity: "transactions", id: "t", error: "invalid_record", field: "note")])
+    }
+}

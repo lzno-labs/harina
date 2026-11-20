@@ -166,12 +166,17 @@ public struct PullResponse: Codable, Sendable {
 
 public struct PushRequest: Codable, Sendable {
     public var changes: SyncRecords
-    public init(changes: SyncRecords) { self.changes = changes }
+    /// Save what is valid and report the rest, instead of refusing the whole push
+    /// (docs/adr/0008-partial-push.md). Moves leave it out: they must succeed or fail whole.
+    public var partial: Bool?
+    public init(changes: SyncRecords, partial: Bool? = nil) { self.changes = changes; self.partial = partial }
 }
 
 public struct PushResponse: Codable, Sendable {
     public var seq: Int64
     public var records: SyncRecords
+    /// Only with `partial`; older servers never send it.
+    public var rejected: [RejectedChange]?
 }
 
 public struct LinkResponse: Codable, Sendable {

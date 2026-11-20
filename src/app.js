@@ -332,7 +332,8 @@ export function createApp({ db, config, assets, decider = null }) {
       case "POST /api/sync": {
         needAny();
         const body = await readJson(req);
-        return json(await push(db, body.changes, await scope(who.userId)));
+        // The iPhone's queue asks for `partial` (docs/adr/0008-partial-push.md); the web saves whole.
+        return json(await push(db, body.changes, await scope(who.userId), Date.now(), { partial: body.partial === true }));
       }
 
       // ----- Shared spaces (docs/design/people-and-spaces.md, phase 2) -----

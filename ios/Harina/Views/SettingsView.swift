@@ -26,6 +26,21 @@ struct SettingsView: View {
             Section {
                 NavigationLink { AccountView() } label: { AccountCard() }
             }
+            // The server refused some changes (docs/adr/0008-partial-push.md); the rest keeps syncing.
+            if !sync.rejected.isEmpty {
+                Section {
+                    NavigationLink { RejectedChangesView() } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("rejected.count \(sync.rejected.count)").font(.headline)
+                                Text("rejected.hint").font(.caption).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.warn)
+                        }
+                    }
+                }
+            }
             if sync.isLinked, sync.me?.hasPasskey == false {
                 Section { PasskeyNudge() }
             }
@@ -140,6 +155,8 @@ struct AccountCard: View {
                     Text(verbatim: me?.name ?? host).font(.headline)
                     if sync.lastError != nil {
                         Label("settings.syncError", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                    } else if !sync.rejected.isEmpty {
+                        Label("rejected.short \(sync.rejected.count)", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
                     } else if let last = sync.lastSync {
                         Text("settings.syncedAt \(host) \(last.formatted(.relative(presentation: .named)))").font(.caption).foregroundStyle(.secondary)
                     } else {
