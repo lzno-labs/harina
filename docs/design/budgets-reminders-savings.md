@@ -42,6 +42,16 @@ Migration 0007 creates the three tables and rebuilds `transactions` to widen the
 - **Web:** the same cards and management pages; no push notifications on the web.
 - **Settings** (both): «Sobres», «Ahorros», «Recordatorios» rows under «Tu dinero»; notification
   time and toggles under Apple Pay / notifications.
+- **Editing** (added 2026-11-20, owner report): tapping an envelope, pot or reminder, in its list
+  or in the summary, opens the same form used to create it, with Delete. Each form shows something
+  extra:
+  - Envelope: this month's expenses that count toward it.
+  - Pot: its deposits, withdrawals and the expenses paid from it. Its currency is fixed once it has
+    movements.
+  - Reminder: an optional category, which «Ya pagué» fills in, and «Pagado este mes», which undoes
+    a «Ya pagué» tapped by mistake.
+
+  Cards and accounts get the same editor: the name, and the card name Wallet reports.
 
 ## Not in scope
 

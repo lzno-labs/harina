@@ -103,7 +103,8 @@
     "more": "Más detalles",
     "suggestedShort": "Sugerida",
     "saveExpense": "Guardar gasto",
-    "saveIncome": "Guardar ingreso"
+    "saveIncome": "Guardar ingreso",
+    "edit": "Editar"
   },
   "review": {
     "title": "Por revisar",
@@ -160,7 +161,9 @@
     "card": "Tarjeta que reporta el atajo (opcional)",
     "cardHint": "Escribe el nombre exacto de la tarjeta como lo muestra Wallet, por ejemplo «BAC Visa». Así Harina asigna sola esta cuenta a esos pagos.",
     "confirmDelete": "¿Borrar la cuenta «{name}»? Los movimientos quedan sin cuenta.",
-    "cardShort": "Tarjeta en Wallet (opcional)"
+    "cardShort": "Tarjeta en Wallet (opcional)",
+    "edit": "Editar cuenta",
+    "needName": "Ponle un nombre a la cuenta."
   },
   "devices": {
     "title": "iPhone vinculados",
@@ -449,9 +452,14 @@
     "amount": "Tope del mes",
     "categories": "Categorías que cuentan",
     "create": "Crear sobre",
-    "invalid": "Escribe un tope y elige al menos una categoría.",
     "confirmDelete": "¿Borrar el sobre «{name}»? Tus movimientos no cambian.",
-    "hint": "Un sobre suma lo que gastas en el mes en sus categorías. Te avisamos al 80 % y al pasarte. Es del espacio que estás viendo."
+    "hint": "Un sobre suma lo que gastas en el mes en sus categorías. Te avisamos al 80 % y al pasarte. Es del espacio que estás viendo.",
+    "nameLabel": "Nombre",
+    "edit": "Editar sobre",
+    "needName": "Ponle un nombre al sobre.",
+    "needAmount": "Escribe el tope del mes, por ejemplo 150000.",
+    "needCategories": "Elige al menos una categoría.",
+    "tooManyCategories": "Un sobre puede tener hasta 20 categorías."
   },
   "pots": {
     "title": "Ahorros",
@@ -474,7 +482,12 @@
     "confirmDelete": "¿Borrar la bolsa «{name}»? Sus movimientos quedan en tu historial.",
     "payWith": "Pagar con ahorros",
     "notFromSavings": "No, dinero del día a día",
-    "hint": "Pasar plata a una bolsa no cuenta como gasto del mes. Un gasto pagado con ahorros sí cuenta y baja el saldo de la bolsa."
+    "hint": "Pasar plata a una bolsa no cuenta como gasto del mes. Un gasto pagado con ahorros sí cuenta y baja el saldo de la bolsa.",
+    "nameLabel": "Nombre",
+    "edit": "Editar bolsa",
+    "needName": "Ponle un nombre a la bolsa.",
+    "badGoal": "La meta debe ser un monto, por ejemplo 400000.",
+    "currencyLocked": "La moneda no se puede cambiar porque la bolsa ya tiene movimientos."
   },
   "reminders": {
     "title": "Recordatorios",
@@ -493,7 +506,12 @@
     "invalidDay": "El día va del 1 al 31.",
     "confirmDelete": "¿Borrar el recordatorio «{name}»?",
     "hint": "Para pagos que Harina no ve, como la tarjeta o la luz. El iPhone te avisa el día antes y el mismo día. «Ya pagué» te ayuda a anotarlo.",
-    "tomorrow": "Mañana"
+    "tomorrow": "Mañana",
+    "nameLabel": "Qué pagar",
+    "edit": "Editar recordatorio",
+    "needName": "Escribe qué hay que pagar.",
+    "categoryHint": "El monto y la categoría se llenan solos cuando tocas «Ya pagué».",
+    "paidThisMonth": "Pagado este mes (desmárcalo si tocaste «Ya pagué» por error)"
   },
   "nudge": {
     "fixedTitle": "Encontramos {merchant}",

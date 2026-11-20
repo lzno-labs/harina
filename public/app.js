@@ -902,6 +902,20 @@ function fixedCard(cur) {
   );
 }
 
+/** A summary row that opens its editor on click, Enter or Space. */
+const openOnClick = (open) => ({
+  role: "button",
+  tabindex: "0",
+  "aria-label": t("form.edit"),
+  onclick: open,
+  onkeydown: (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      open();
+    }
+  },
+});
+
 /** Envelopes of this month in the summary's currency (docs/design/budgets-reminders-savings.md). */
 function budgetsCard(cur) {
   const list = live(state.budgets).filter((b) => b.currency === cur);
@@ -911,7 +925,7 @@ function budgetsCard(cur) {
     h("div", { class: "card-head" }, h("h2", { text: t("budgets.title") }), h("a", { href: "#/ajustes/sobres", text: t("month.seeAll") })),
     list.map((b) => {
       const st = budgetStatus(b, txs, state.month);
-      return h("div", { class: `meter ${st.level}` },
+      return h("div", { class: `meter ${st.level} tappable`, ...openOnClick(() => editBudget(b, router)) },
         h("div", { class: "meter-head" }, h("b", { text: b.name }),
           h("span", { class: "num", text: st.left >= 0 ? t("budgets.left", { amount: money(st.left, cur) }) : t("budgets.over", { amount: money(-st.left, cur) }) })),
         h("div", { class: "bar" }, h("span", { pct: Math.min(100, Math.round(st.ratio * 100)) })),
@@ -927,7 +941,7 @@ function potsCard() {
     h("div", { class: "card-head" }, h("h2", { text: t("pots.title") }), h("a", { href: "#/ajustes/ahorros", text: t("month.seeAll") })),
     list.map((p) => {
       const b = potBalance(p, txs);
-      return h("div", { class: "meter ok" },
+      return h("div", { class: "meter ok tappable", ...openOnClick(() => editPot(p, router)) },
         h("div", { class: "meter-head" }, h("b", { text: p.name }), h("span", { class: "num", text: money(b.balance, p.currency) })),
         b.goal ? h("div", { class: "bar" }, h("span", { pct: Math.round(b.progress * 100) })) : null,
         b.goal ? h("small", { class: "num", text: t("pots.goal", { pct: Math.round(b.progress * 100), goal: money(b.goal, p.currency) }) }) : null);
@@ -1668,119 +1682,246 @@ function viewJoin(code) {
   );
 }
 
-// ---------- envelopes, savings and reminders pages (docs/design/budgets-reminders-savings.md) ----------
+// ---------- envelopes, savings, reminders and cards (docs/design/budgets-reminders-savings.md) ----------
 
-const curSelect = (value) => h("select", { class: "input compact", "aria-label": t("form.currency") }, CURRENCIES.map((c) => h("option", { value: c, selected: c === value, text: c })));
-const delBtn = (label, onclick) => h("button", { class: "link-btn danger", "aria-label": label, title: label, onclick }, icon("trash"));
+const curSelect = (value, disabled = false) => h("select", { class: "input compact", "aria-label": t("form.currency"), disabled }, CURRENCIES.map((c) => h("option", { value: c, selected: c === value, text: c })));
+const field = (label, ...content) => h("label", { class: "field" }, h("span", { text: label }), ...content);
+const editBtn = (onclick) => h("button", { type: "button", class: "link-btn", "aria-label": t("form.edit"), title: t("form.edit"), onclick }, icon("edit"));
+const byName = (a, b) => categoryName(a).localeCompare(categoryName(b), region);
 
-function budgetsPage(rerender) {
-  const txs = liveTx();
-  const name = h("input", { class: "input", placeholder: t("budgets.name"), "aria-label": t("budgets.name"), required: true });
-  const amount = h("input", { class: "input", inputmode: "decimal", placeholder: t("budgets.amount"), "aria-label": t("budgets.amount"), required: true });
-  const cur = curSelect(state.currency || "CRC");
-  const picked = new Set();
-  const cats = h("div", { class: "chips wrap", role: "group", "aria-label": t("budgets.categories") },
-    live(state.categories).sort((a, b) => categoryName(a).localeCompare(categoryName(b), region)).map((c) =>
-      h("button", { type: "button", class: "chip", "aria-pressed": "false", onclick: (e) => {
+/** Says what is missing, focuses that field and keeps the sheet open. */
+function missing(key, input) {
+  toast(t(key));
+  input?.focus();
+  return false;
+}
+
+/**
+ * A modal form like the category editor: the fields, Save, Delete when editing and Cancel.
+ * `onSave` returns false to keep the sheet open.
+ */
+function formSheet({ title, fields, onSave, onDelete = null, deleteConfirm = "" }) {
+  const dialog = h(
+    "dialog",
+    { class: "sheet" },
+    h(
+      "form",
+      {
+        method: "dialog",
+        onsubmit: (e) => {
+          e.preventDefault();
+          guarded(async () => {
+            if ((await onSave()) !== false) dialog.close();
+          });
+        },
+      },
+      h("div", { class: "sheet-head" }, h("h2", { text: title })),
+      ...fields,
+      h(
+        "div",
+        { class: "actions-row" },
+        h("button", { class: "btn primary" }, icon("check"), t("form.save")),
+        onDelete
+          ? h("button", {
+              type: "button",
+              class: "btn danger ghost",
+              onclick: () =>
+                confirm(deleteConfirm) &&
+                guarded(async () => {
+                  await onDelete();
+                  dialog.close();
+                }),
+            }, icon("trash"), t("form.delete"))
+          : null,
+        h("button", { type: "button", class: "btn ghost", text: t("app.cancel"), onclick: () => dialog.close() }),
+      ),
+    ),
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  document.body.append(dialog);
+  dialog.showModal();
+  dialog.querySelector("input")?.focus();
+}
+
+/** New or existing envelope: name, monthly limit and the categories that count. */
+function editBudget(b, onchange) {
+  const name = h("input", { class: "input", value: b?.name ?? "", maxlength: "100", placeholder: t("budgets.name"), "aria-label": t("budgets.nameLabel") });
+  const amount = h("input", { class: "input", inputmode: "decimal", value: b ? minorToInput(b.amount_minor, b.currency, region) : "", placeholder: t("budgets.amount"), "aria-label": t("budgets.amount") });
+  const cur = curSelect(b?.currency ?? (state.currency || "CRC"));
+  const picked = new Set(b ? JSON.parse(b.category_ids) : []);
+  const cats = live(state.categories).sort(byName);
+  const chips = h("div", { class: "chips wrap", role: "group", "aria-label": t("budgets.categories") },
+    cats.map((c) =>
+      h("button", { type: "button", class: "chip", "aria-pressed": String(picked.has(c.id)), onclick: (e) => {
         if (picked.has(c.id)) picked.delete(c.id); else picked.add(c.id);
         e.currentTarget.setAttribute("aria-pressed", String(picked.has(c.id)));
       } }, tile(c, "tile xs"), categoryName(c))));
+  formSheet({
+    title: t(b ? "budgets.edit" : "budgets.new"),
+    fields: [field(t("budgets.nameLabel"), name), field(t("budgets.amount"), h("div", { class: "inline-form" }, amount, cur)), field(t("budgets.categories"), chips)],
+    onSave: async () => {
+      // Only categories that still exist, in a stable order (the server keeps at most 20).
+      const ids = cats.map((c) => c.id).filter((id) => picked.has(id));
+      const minor = parseAmount(amount.value, cur.value);
+      if (!name.value.trim()) return missing("budgets.needName", name);
+      if (!minor) return missing("budgets.needAmount", amount);
+      if (!ids.length) return missing("budgets.needCategories");
+      if (ids.length > 20) return missing("budgets.tooManyCategories");
+      await save("budgets", { ...(b ?? { id: crypto.randomUUID() }), name: name.value.trim(), amount_minor: minor, currency: cur.value, category_ids: ids, deleted: false });
+      onchange();
+    },
+    onDelete: b ? async () => (await save("budgets", { ...b, deleted: true }), onchange()) : null,
+    deleteConfirm: b ? t("budgets.confirmDelete", { name: b.name }) : "",
+  });
+}
+
+/** New or existing savings pot. The currency stays fixed once it has movements. */
+function editPot(p, onchange) {
+  const used = Boolean(p) && liveTx().some((x) => x.pot_id === p.id);
+  const name = h("input", { class: "input", value: p?.name ?? "", maxlength: "100", placeholder: t("pots.name"), "aria-label": t("pots.nameLabel") });
+  const cur = curSelect(p?.currency ?? (state.currency || "CRC"), used);
+  const goal = h("input", { class: "input", inputmode: "decimal", value: p?.goal_minor ? minorToInput(p.goal_minor, p.currency, region) : "", placeholder: t("pots.goalOptional"), "aria-label": t("pots.goalOptional") });
+  const goalDate = h("input", { class: "input", type: "date", value: p?.goal_date ?? "", "aria-label": t("pots.goalDate") });
+  formSheet({
+    title: t(p ? "pots.edit" : "pots.new"),
+    fields: [
+      field(t("pots.nameLabel"), name),
+      field(t("form.currency"), cur, used ? h("small", { class: "muted", text: t("pots.currencyLocked") }) : null),
+      field(t("pots.goalOptional"), goal),
+      field(t("pots.goalDate"), goalDate),
+    ],
+    onSave: async () => {
+      if (!name.value.trim()) return missing("pots.needName", name);
+      const goalMinor = goal.value.trim() ? parseAmount(goal.value, cur.value) : null;
+      if (goal.value.trim() && !goalMinor) return missing("pots.badGoal", goal);
+      await save("pots", { ...(p ?? { id: crypto.randomUUID() }), name: name.value.trim(), currency: cur.value, goal_minor: goalMinor, goal_date: goalDate.value || null, deleted: false });
+      onchange();
+    },
+    onDelete: p ? async () => (await save("pots", { ...p, deleted: true }), onchange()) : null,
+    deleteConfirm: p ? t("pots.confirmDelete", { name: p.name }) : "",
+  });
+}
+
+/** Moves money into or out of a pot. */
+function movePot(p, kind, onchange) {
+  const amount = h("input", { class: "input", inputmode: "decimal", placeholder: t("form.amountPlaceholder"), "aria-label": t("form.amount") });
+  formSheet({
+    title: t(kind === "saving" ? "pots.depositPrompt" : "pots.withdrawPrompt", { name: p.name }),
+    fields: [field(t("form.amount"), h("div", { class: "inline-form" }, amount, h("span", { class: "muted", text: p.currency })))],
+    onSave: async () => {
+      const minor = parseAmount(amount.value, p.currency);
+      if (!minor) return missing("form.invalidAmount", amount);
+      await save("transactions", { id: crypto.randomUUID(), kind, amount_minor: minor, currency: p.currency, pot_id: p.id, merchant: p.name, source: "manual", occurred_at: new Date().toISOString(), space_id: p.space_id });
+      onchange();
+    },
+  });
+}
+
+/** New or existing reminder. Editing can also undo «Ya pagué» for this month. */
+function editReminder(r, onchange) {
+  const month = monthOf(new Date());
+  const name = h("input", { class: "input", value: r?.name ?? "", maxlength: "100", placeholder: t("reminders.name"), "aria-label": t("reminders.nameLabel") });
+  const day = h("input", { class: "input", type: "number", min: 1, max: 31, value: String(r?.day_of_month ?? new Date().getDate()), "aria-label": t("reminders.day") });
+  const amount = h("input", { class: "input", inputmode: "decimal", value: r?.amount_minor ? minorToInput(r.amount_minor, r.currency ?? "CRC", region) : "", placeholder: t("reminders.amountOptional"), "aria-label": t("reminders.amountOptional") });
+  const cur = curSelect(r?.currency ?? (state.currency || "CRC"));
+  const cat = h("select", { class: "input", "aria-label": t("form.category") },
+    h("option", { value: "", text: t("form.none") }),
+    live(state.categories).sort(byName).map((c) => h("option", { value: c.id, selected: c.id === r?.category_id, text: categoryName(c) })));
+  const paid = r ? h("input", { type: "checkbox", checked: r.paid_month === month }) : null;
+  formSheet({
+    title: t(r ? "reminders.edit" : "reminders.new"),
+    fields: [
+      field(t("reminders.nameLabel"), name),
+      field(t("reminders.day"), day),
+      field(t("reminders.amountOptional"), h("div", { class: "inline-form" }, amount, cur)),
+      field(t("form.category"), cat, h("small", { class: "muted", text: t("reminders.categoryHint") })),
+      r ? h("label", { class: "check-row" }, paid, h("span", { text: t("reminders.paidThisMonth") })) : null,
+    ],
+    onSave: async () => {
+      if (!name.value.trim()) return missing("reminders.needName", name);
+      const d = Number(day.value);
+      if (!Number.isInteger(d) || d < 1 || d > 31) return missing("reminders.invalidDay", day);
+      const minor = amount.value.trim() ? parseAmount(amount.value, cur.value) : null;
+      if (amount.value.trim() && !minor) return missing("form.invalidAmount", amount);
+      const paidMonth = !r ? null : paid.checked ? month : r.paid_month === month ? null : r.paid_month;
+      await save("reminders", { ...(r ?? { id: crypto.randomUUID() }), name: name.value.trim(), day_of_month: d, amount_minor: minor, currency: minor ? cur.value : null, category_id: cat.value || null, paid_month: paidMonth, deleted: false });
+      onchange();
+    },
+    onDelete: r ? async () => (await save("reminders", { ...r, deleted: true }), onchange()) : null,
+    deleteConfirm: r ? t("reminders.confirmDelete", { name: r.name }) : "",
+  });
+}
+
+/** New or existing account: its name and the card name Wallet reports. */
+function editAccount(a, onchange) {
+  const name = h("input", { class: "input", value: a?.name ?? "", maxlength: "100", placeholder: t("accounts.name"), "aria-label": t("accounts.name") });
+  const card = h("input", { class: "input", value: a?.card ?? "", maxlength: "100", placeholder: t("accounts.cardShort"), "aria-label": t("accounts.cardShort") });
+  formSheet({
+    title: t(a ? "accounts.edit" : "accounts.add"),
+    fields: [field(t("accounts.name"), name), field(t("accounts.cardShort"), card, h("small", { class: "muted", text: t("accounts.cardHint") }))],
+    onSave: async () => {
+      if (!name.value.trim()) return missing("accounts.needName", name);
+      await save("accounts", { ...(a ?? { id: crypto.randomUUID() }), name: name.value.trim(), card: card.value.trim() || null, deleted: false });
+      onchange();
+    },
+    onDelete: a ? async () => (await save("accounts", { ...a, deleted: true }), onchange()) : null,
+    deleteConfirm: a ? t("accounts.confirmDelete", { name: a.name }) : "",
+  });
+}
+
+function budgetsPage(rerender) {
+  const txs = liveTx();
+  const list = live(state.budgets);
   return [
     h("div", { class: "group" },
-      live(state.budgets).length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("budgets.empty") })),
-      live(state.budgets).map((b) => {
+      list.length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("budgets.empty") })),
+      list.map((b) => {
         const st = budgetStatus(b, txs, monthOf(new Date()));
-        const names = JSON.parse(b.category_ids).map((id) => categoryName(state.categories.get(id))).join(", ");
-        return h("div", { class: `row meter ${st.level}` },
+        // Categories deleted after the envelope was made are left out of the list.
+        const names = JSON.parse(b.category_ids).map((id) => state.categories.get(id)).filter((c) => c && !c.deleted).map(categoryName).join(", ");
+        return h("button", { type: "button", class: `row row-btn meter ${st.level}`, onclick: () => editBudget(b, rerender) },
           h("div", { class: "grow" },
             h("div", { class: "meter-head" }, h("b", { text: b.name }), h("span", { class: "num", text: t("budgets.of", { spent: money(st.spent, b.currency), total: money(b.amount_minor, b.currency) }) })),
             h("div", { class: "bar" }, h("span", { pct: Math.min(100, Math.round(st.ratio * 100)) })),
             h("small", { text: names })),
-          delBtn(t("form.delete"), () => confirm(t("budgets.confirmDelete", { name: b.name })) && guarded(async () => (await save("budgets", { ...b, deleted: true }), rerender()))));
-      })),
-    h("p", { class: "group-title", text: t("budgets.new") }),
-    h("form", { class: "group form-group", onsubmit: (e) => {
-      e.preventDefault();
-      const minor = parseAmount(amount.value, cur.value);
-      if (!minor || !picked.size) return toast(t("budgets.invalid"));
-      guarded(async () => (await save("budgets", { id: crypto.randomUUID(), name: name.value.trim(), amount_minor: minor, currency: cur.value, category_ids: [...picked] }), rerender()));
-    } },
-      h("div", { class: "row" }, name),
-      h("div", { class: "row" }, amount, cur),
-      h("div", { class: "row col" }, h("span", { class: "muted", text: t("budgets.categories") }), cats),
-      h("div", { class: "row" }, h("button", { class: "btn primary" }, icon("plus"), t("budgets.create")))),
+          h("span", { class: "go" }, icon("edit")));
+      }),
+      h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editBudget(null, rerender) }, icon("plus"), t("budgets.create")))),
     h("p", { class: "eyebrow", text: t("budgets.hint") }),
   ];
 }
 
 function potsPage(rerender) {
   const txs = liveTx();
-  const name = h("input", { class: "input", placeholder: t("pots.name"), "aria-label": t("pots.name"), required: true });
-  const goal = h("input", { class: "input", inputmode: "decimal", placeholder: t("pots.goalOptional"), "aria-label": t("pots.goalOptional") });
-  const goalDate = h("input", { class: "input", type: "date", "aria-label": t("pots.goalDate") });
-  const cur = curSelect(state.currency || "CRC");
-  const move = (p, kind) => {
-    const raw = prompt(t(kind === "saving" ? "pots.depositPrompt" : "pots.withdrawPrompt", { name: p.name }));
-    if (!raw) return;
-    const minor = parseAmount(raw, p.currency);
-    if (!minor) return toast(t("form.invalidAmount"));
-    guarded(async () => {
-      await save("transactions", { id: crypto.randomUUID(), kind, amount_minor: minor, currency: p.currency, pot_id: p.id, merchant: p.name, source: "manual", occurred_at: new Date().toISOString() });
-      rerender();
-    });
-  };
+  const list = live(state.pots);
+  const day = (iso) => new Intl.DateTimeFormat(region, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
   return [
     h("div", { class: "group" },
-      live(state.pots).length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("pots.empty") })),
-      live(state.pots).map((p) => {
+      list.length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("pots.empty") })),
+      list.map((p) => {
         const b = potBalance(p, txs);
         return h("div", { class: "row meter ok" },
           h("div", { class: "grow" },
             h("div", { class: "meter-head" }, h("b", { text: p.name }), h("span", { class: "num", text: money(b.balance, p.currency) })),
             b.goal ? h("div", { class: "bar" }, h("span", { pct: Math.round(b.progress * 100) })) : null,
-            b.goal ? h("small", { class: "num", text: t("pots.goal", { pct: Math.round(b.progress * 100), goal: money(b.goal, p.currency) }) + (p.goal_date ? ` · ${p.goal_date}` : "") }) : null,
+            b.goal ? h("small", { class: "num", text: t("pots.goal", { pct: Math.round(b.progress * 100), goal: money(b.goal, p.currency) }) + (p.goal_date ? ` · ${day(p.goal_date)}` : "") }) : null,
             h("div", { class: "pot-actions" },
-              h("button", { class: "btn", onclick: () => move(p, "saving") }, icon("down"), t("pots.deposit")),
-              h("button", { class: "btn", onclick: () => move(p, "withdrawal") }, icon("up"), t("pots.withdraw")))),
-          delBtn(t("form.delete"), () => confirm(t("pots.confirmDelete", { name: p.name })) && guarded(async () => (await save("pots", { ...p, deleted: true }), rerender()))));
-      })),
-    h("p", { class: "group-title", text: t("pots.new") }),
-    h("form", { class: "group form-group", onsubmit: (e) => {
-      e.preventDefault();
-      const goalMinor = goal.value.trim() ? parseAmount(goal.value, cur.value) : null;
-      if (goal.value.trim() && !goalMinor) return toast(t("form.invalidAmount"));
-      guarded(async () => (await save("pots", { id: crypto.randomUUID(), name: name.value.trim(), currency: cur.value, goal_minor: goalMinor, goal_date: goalDate.value || null }), rerender()));
-    } },
-      h("div", { class: "row" }, name, cur),
-      h("div", { class: "row" }, goal, goalDate),
-      h("div", { class: "row" }, h("button", { class: "btn primary" }, icon("plus"), t("pots.create")))),
+              h("button", { class: "btn", onclick: () => movePot(p, "saving", rerender) }, icon("down"), t("pots.deposit")),
+              h("button", { class: "btn", onclick: () => movePot(p, "withdrawal", rerender) }, icon("up"), t("pots.withdraw")))),
+          editBtn(() => editPot(p, rerender)));
+      }),
+      h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editPot(null, rerender) }, icon("plus"), t("pots.create")))),
     h("p", { class: "eyebrow", text: t("pots.hint") }),
   ];
 }
 
 function remindersPage(rerender) {
-  const name = h("input", { class: "input", placeholder: t("reminders.name"), "aria-label": t("reminders.name"), required: true });
-  const day = h("input", { class: "input", type: "number", min: 1, max: 31, placeholder: t("reminders.day"), "aria-label": t("reminders.day"), required: true });
-  const amount = h("input", { class: "input", inputmode: "decimal", placeholder: t("reminders.amountOptional"), "aria-label": t("reminders.amountOptional") });
-  const cur = curSelect(state.currency || "CRC");
   const list = live(state.reminders).map((r) => ({ r, st: reminderStatus(r) })).sort((a, b) => a.st.days - b.st.days);
   return [
     h("div", { class: "group" },
       list.length ? null : h("div", { class: "row" }, h("span", { class: "muted", text: t("reminders.empty") })),
-      list.map(({ r, st }) => h("div", { class: "row-wrap" }, reminderRow(r, st),
-        delBtn(t("form.delete"), () => confirm(t("reminders.confirmDelete", { name: r.name })) && guarded(async () => (await save("reminders", { ...r, deleted: true }), rerender())))))),
-    h("p", { class: "group-title", text: t("reminders.new") }),
-    h("form", { class: "group form-group", onsubmit: (e) => {
-      e.preventDefault();
-      const d = Number(day.value);
-      if (!Number.isInteger(d) || d < 1 || d > 31) return toast(t("reminders.invalidDay"));
-      const minor = amount.value.trim() ? parseAmount(amount.value, cur.value) : null;
-      if (amount.value.trim() && !minor) return toast(t("form.invalidAmount"));
-      guarded(async () => (await save("reminders", { id: crypto.randomUUID(), name: name.value.trim(), day_of_month: d, amount_minor: minor, currency: minor ? cur.value : null }), rerender()));
-    } },
-      h("div", { class: "row" }, name),
-      h("div", { class: "row" }, day, amount, cur),
-      h("div", { class: "row" }, h("button", { class: "btn primary" }, icon("plus"), t("reminders.create")))),
+      list.map(({ r, st }) => h("div", { class: "row-wrap" }, reminderRow(r, st), editBtn(() => editReminder(r, rerender)))),
+      h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editReminder(null, rerender) }, icon("plus"), t("reminders.create")))),
     h("p", { class: "eyebrow", text: t("reminders.hint") }),
   ];
 }
@@ -1887,34 +2028,15 @@ async function viewSettings(page = null) {
                     state.spaces.map((sp) => h("option", { value: sp.id, selected: sp.id === a.space_id, text: spaceName(sp) })),
                   )
                 : null,
-              h("button", {
-                class: "link-btn danger",
-                "aria-label": t("form.delete"),
-                onclick: () => confirm(t("accounts.confirmDelete", { name: a.name })) && guarded(async () => (await save("accounts", { ...a, deleted: true }), rerender())),
-              }, icon("trash")),
+              editBtn(() => editAccount(a, rerender)),
             ),
           ),
-          h(
-            "div",
-            { class: "row" },
-            h(
-              "form",
-              {
-                onsubmit: (e) => {
-                  e.preventDefault();
-                  const [name, card] = e.target.querySelectorAll("input");
-                  if (name.value.trim()) guarded(async () => (await save("accounts", { id: crypto.randomUUID(), name: name.value.trim(), card: card.value.trim() || null }), rerender()));
-                },
-              },
-              h("input", { class: "input", placeholder: t("accounts.name"), "aria-label": t("accounts.name"), required: true }),
-              h("input", { class: "input", placeholder: t("accounts.cardShort"), "aria-label": t("accounts.card") }),
-              h("button", { class: "btn", "aria-label": t("accounts.add") }, icon("plus")),
-            ),
-          ),
+          h("div", { class: "row" }, h("button", { class: "btn block", onclick: () => editAccount(null, rerender) }, icon("plus"), t("accounts.add"))),
         ),
         h("p", { class: "eyebrow", text: t("accounts.cardHint") }),
     );
   }
+
   if (page === "automatica") return sub("auto.title", autoCategoryGroup());
   if (page === "sobres") return sub("budgets.title", budgetsPage(rerender));
   if (page === "ahorros") return sub("pots.title", potsPage(rerender));
