@@ -308,6 +308,8 @@ final class DayTests: XCTestCase {
         let back = ISODate.day(from: "2027-03-01", calendar: cal)!
         XCTAssertEqual(ISODate.day(back, calendar: cal), "2027-03-01")
         XCTAssertNil(ISODate.day(from: "marzo", calendar: cal))
+    }
+}
 
 final class CaptureLogTests: XCTestCase {
     let t0 = Date(timeIntervalSince1970: 1_800_000_000)
