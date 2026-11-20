@@ -22,6 +22,22 @@ struct RecordPaymentIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        // Logged first, so a run that iOS stops halfway still shows up (docs/design/capture-log.md).
+        let run = CaptureLog.start(merchant: merchant, amount: amount, card: card)
+        do {
+            return try await record(run)
+        } catch {
+            CaptureLog.update(run) {
+                if $0.step == .started { $0.step = .failed }
+                $0.error = String(String(describing: error).prefix(300))
+                $0.finishedAt = Date()
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    private func record(_ run: String) async throws -> some IntentResult & ProvidesDialog {
         let context = Store.container.mainContext
         // The card's space decides where the payment lands (docs/design/people-and-spaces.md).
         let account = Self.account(forCard: card, in: context)
@@ -45,6 +61,12 @@ struct RecordPaymentIntent: AppIntent {
         if autoCategory == nil, dto.needs_review == 0 { new.suggestedCategoryId = Smart.suggestion(decision) }
         context.insert(new)
         try context.save()
+        CaptureLog.update(run) {
+            $0.step = .saved
+            $0.movementId = dto.id
+            $0.needsReview = dto.needs_review == 1
+            $0.categorySource = autoCategory == nil ? nil : decision.source.rawValue
+        }
         // Best effort: without signal the payment waits in the queue and syncs later.
         await SyncService.shared.sync()
         // First-week check: remember one payment that could not reach the server right away.
@@ -68,6 +90,10 @@ struct RecordPaymentIntent: AppIntent {
             ? String(localized: "intent.record.savedReview")
             : autoCategory.map { String(localized: "intent.record.savedAuto \(money) \($0.displayName)") }
             ?? String(localized: "intent.record.saved \(money)")
+        CaptureLog.update(run) {
+            $0.step = .done
+            $0.finishedAt = Date()
+        }
         return .result(dialog: IntentDialog(stringLiteral: [shown, envelope].compactMap { $0 }.joined(separator: " ")))
     }
 

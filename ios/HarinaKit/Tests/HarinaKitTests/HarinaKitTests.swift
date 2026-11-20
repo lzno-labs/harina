@@ -296,3 +296,124 @@ final class MoneyToolsTests: XCTestCase {
         XCTAssertEqual(p.days, 25)
     }
 }
+
+final class DayTests: XCTestCase {
+    func testDayIsLocalNotUTC() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Costa_Rica")!
+        // 2026-11-20 at 23:30 in Costa Rica is 2026-11-21 05:30 UTC.
+        let evening = cal.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 23, minute: 30))!
+        XCTAssertEqual(ISODate.day(evening, calendar: cal), "2026-11-20")
+        XCTAssertTrue(ISODate.string(evening).hasPrefix("2026-11-21"))
+        let back = ISODate.day(from: "2027-03-01", calendar: cal)!
+        XCTAssertEqual(ISODate.day(back, calendar: cal), "2027-03-01")
+        XCTAssertNil(ISODate.day(from: "marzo", calendar: cal))
+    }
+}
+
+final class CaptureLogTests: XCTestCase {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testStatusFollowsTheSteps() {
+        var run = CaptureRun(startedAt: t0, merchant: "Ola Ola", amountText: "₡33 200,00", card: "Millas Plus")
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(5)), .running)
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(600)), .interrupted)
+
+        run.step = .saved
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(5)), .running)
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(600)), .saved)
+        XCTAssertTrue(run.cutShort(now: t0.addingTimeInterval(600)))
+
+        run.step = .done
+        run.finishedAt = t0.addingTimeInterval(1.5)
+        XCTAssertEqual(run.status(now: t0.addingTimeInterval(600)), .saved)
+        XCTAssertFalse(run.cutShort(now: t0.addingTimeInterval(600)))
+        XCTAssertEqual(run.duration, 1.5)
+
+        run.needsReview = true
+        XCTAssertEqual(run.status(now: t0), .review)
+        run.step = .failed
+        XCTAssertEqual(run.status(now: t0), .failed)
+    }
+
+    func testKeepsTheNewestRunsFirst() {
+        var runs: [CaptureRun] = []
+        for i in 0..<(CaptureLogRules.maxRuns + 5) {
+            runs = CaptureLogRules.adding(CaptureRun(id: "r\(i)", startedAt: t0, merchant: nil, amountText: nil, card: nil), to: runs)
+        }
+        XCTAssertEqual(runs.count, CaptureLogRules.maxRuns)
+        XCTAssertEqual(runs.first?.id, "r\(CaptureLogRules.maxRuns + 4)")
+        runs = CaptureLogRules.updating("r10", in: runs) { $0.step = .failed; $0.error = "boom" }
+        XCTAssertEqual(runs.first { $0.id == "r10" }?.error, "boom")
+        XCTAssertEqual(runs.filter { $0.step == .failed }.count, 1)
+    }
+
+    func testSummaryCountsRecentRuns() {
+        let now = t0.addingTimeInterval(3600)
+        var saved = CaptureRun(id: "a", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        saved.step = .done
+        var review = CaptureRun(id: "b", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        review.step = .done
+        review.needsReview = true
+        var failed = CaptureRun(id: "c", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        failed.step = .failed
+        let stopped = CaptureRun(id: "d", startedAt: t0, merchant: nil, amountText: nil, card: nil)
+        let running = CaptureRun(id: "e", startedAt: now, merchant: nil, amountText: nil, card: nil)
+        let old = CaptureRun(id: "f", startedAt: t0.addingTimeInterval(-90 * 86400), merchant: nil, amountText: nil, card: nil)
+        let s = CaptureLogRules.summary([saved, review, failed, stopped, running, old], since: t0.addingTimeInterval(-30 * 86400), now: now)
+        XCTAssertEqual(s, CaptureLogRules.Summary(saved: 2, failed: 1, interrupted: 1))
+    }
+
+    func testRoundTripsAsJSON() throws {
+        var run = CaptureRun(id: "x", startedAt: t0, merchant: String(repeating: "m", count: 500), amountText: "USD 1,516.17", card: "Visa")
+        run.step = .done
+        run.categorySource = "hosted"
+        XCTAssertEqual(run.merchant?.count, 200)
+        let back = try JSONDecoder().decode(CaptureRun.self, from: JSONEncoder().encode(run))
+        XCTAssertEqual(back, run)
+    }
+}
+
+final class SyncLimitsTests: XCTestCase {
+    func testClipsByUTF16WithoutSplittingCharacters() {
+        XCTAssertEqual(SyncLimits.clip("Automercado", 200), "Automercado")
+        let emoji = String(repeating: "😀", count: 150) // 300 UTF-16 code units
+        let clipped = SyncLimits.clip(emoji, 200)
+        XCTAssertEqual(clipped.utf16.count, 200)
+        XCTAssertEqual(clipped.count, 100)
+        // A decomposed «é» is one character of two code units: it is kept whole or left out.
+        let accents = String(repeating: "e\u{301}", count: 3)
+        XCTAssertEqual(SyncLimits.clip(accents, 3).utf16.count, 2)
+        XCTAssertNil(SyncLimits.clip(nil, 10))
+    }
+
+    func testRecordsAreClippedToTheServerLimits() {
+        let note = String(repeating: "👍🏽", count: 400) // 4 code units each
+        let t = TransactionDTO(id: "t", kind: "expense", amount_minor: 1, currency: "CRC", merchant: String(repeating: "m", count: 250),
+                               note: note, source: "manual", occurred_at: "2026-11-20T12:00:00.000Z", updated_at: 1).clipped()
+        XCTAssertEqual(t.merchant?.utf16.count, 200)
+        XCTAssertLessThanOrEqual(t.note?.utf16.count ?? 0, 1000)
+        XCTAssertEqual(AccountDTO(id: "a", name: String(repeating: "n", count: 101), updated_at: 1).clipped().name.count, 100)
+    }
+
+    func testChunksKeepOrderAndSize() {
+        let accounts = (0..<3).map { AccountDTO(id: "a\($0)", name: "A", updated_at: 1) }
+        let txs = (0..<5).map { TransactionDTO(id: "t\($0)", kind: "expense", amount_minor: 1, currency: "CRC", source: "manual",
+                                               occurred_at: "2026-11-20T12:00:00.000Z", updated_at: 1) }
+        let chunks = SyncRecords(accounts: accounts, transactions: txs).chunked(size: 4)
+        XCTAssertEqual(chunks.count, 2)
+        XCTAssertEqual(chunks[0].accounts.map(\.id), ["a0", "a1", "a2"])
+        XCTAssertEqual(chunks[0].transactions.map(\.id), ["t0"])
+        XCTAssertEqual(chunks[1].transactions.map(\.id), ["t1", "t2", "t3", "t4"])
+        XCTAssertTrue(SyncRecords().chunked(size: 4).isEmpty)
+    }
+
+    func testPushMessages() throws {
+        let body = try JSONEncoder().encode(PushRequest(changes: SyncRecords(), partial: true))
+        XCTAssertTrue(String(decoding: body, as: UTF8.self).contains("\"partial\":true"))
+        let old = try JSONDecoder().decode(PushResponse.self, from: Data(#"{"seq":3,"records":{}}"#.utf8))
+        XCTAssertNil(old.rejected)
+        let new = try JSONDecoder().decode(PushResponse.self, from: Data(#"{"seq":3,"records":{},"rejected":[{"entity":"transactions","id":"t","space_id":null,"error":"invalid_record","field":"note"}]}"#.utf8))
+        XCTAssertEqual(new.rejected, [RejectedChange(entity: "transactions", id: "t", error: "invalid_record", field: "note")])
+    }
+}

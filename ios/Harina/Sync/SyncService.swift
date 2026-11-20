@@ -19,6 +19,9 @@ final class SyncService: ObservableObject {
     @Published private(set) var spaces: [SpaceInfo] = Spaces.list
     /// Who this iPhone is signed in as, and whether the account has a passkey to recover it.
     @Published private(set) var me: Me?
+    /// Changes the server refused in the last push (docs/adr/0008-partial-push.md). They stay on the
+    /// iPhone, marked to send, until they are fixed or deleted.
+    @Published private(set) var rejected: [RejectedChange] = []
 
     struct Me: Decodable, Sendable {
         let id: String
@@ -98,6 +101,7 @@ final class SyncService: ObservableObject {
         AppSettings.serverURL = nil
         AppSettings.lastSeq = 0
         me = nil
+        rejected = []
         adoptSpaces([])
     }
 
@@ -243,16 +247,24 @@ final class SyncService: ObservableObject {
         let reminders = try context.fetch(FetchDescriptor<ReminderItem>(predicate: #Predicate { $0.dirty == true }))
         let budgets = try context.fetch(FetchDescriptor<BudgetItem>(predicate: #Predicate { $0.dirty == true }))
         let pots = try context.fetch(FetchDescriptor<PotItem>(predicate: #Predicate { $0.dirty == true }))
+        // Text is cut to the server's limits, counted like the server counts (docs/adr/0008-partial-push.md).
         let all = SyncRecords(accounts: accounts.map(\.dto), categories: categories.map(\.dto), transactions: movements.map(\.dto),
-                              reminders: reminders.map(\.dto), budgets: budgets.map(\.dto), pots: pots.map(\.dto))
-        guard !all.isEmpty else { return }
-        // The server takes up to 500 records per push.
-        for chunk in Self.chunks(all, size: 400) {
-            let data = try await request("/api/sync", method: "POST", body: JSONEncoder().encode(PushRequest(changes: chunk)))
+                              reminders: reminders.map(\.dto), budgets: budgets.map(\.dto), pots: pots.map(\.dto)).clipped()
+        guard !all.isEmpty else {
+            rejected = []
+            return
+        }
+        // At most 400 records per push (the server takes 500). `partial`: the server saves what is
+        // valid and reports the rest, so one refused record never blocks the others or the pull.
+        var refused: [RejectedChange] = []
+        for chunk in all.chunked(size: 400) {
+            let data = try await request("/api/sync", method: "POST", body: JSONEncoder().encode(PushRequest(changes: chunk, partial: true)))
             let res = try JSONDecoder().decode(PushResponse.self, from: data)
             apply(res.records, pushed: chunk)
+            refused += res.rejected ?? []
         }
         try context.save()
+        rejected = refused
     }
 
     private func pullAll() async throws {
@@ -342,20 +354,6 @@ final class SyncService: ObservableObject {
                 context.insert(PotItem(dto, dirty: false))
             }
         }
-    }
-
-    private static func chunks(_ r: SyncRecords, size: Int) -> [SyncRecords] {
-        // Accounts and categories first, so movements never point at a record the server lacks.
-        var out: [SyncRecords] = []
-        if !r.accounts.isEmpty || !r.categories.isEmpty || !r.reminders.isEmpty || !r.budgets.isEmpty || !r.pots.isEmpty {
-            out.append(SyncRecords(accounts: r.accounts, categories: r.categories, reminders: r.reminders, budgets: r.budgets, pots: r.pots))
-        }
-        var i = 0
-        while i < r.transactions.count {
-            out.append(SyncRecords(transactions: Array(r.transactions[i..<min(i + size, r.transactions.count)])))
-            i += size
-        }
-        return out
     }
 }
 
@@ -488,7 +486,8 @@ extension SyncService {
         if let a = m.accountId, (try? context.fetch(FetchDescriptor<AccountItem>(predicate: #Predicate { $0.id == a })).first)?.space != space {
             moved.account_id = nil
         }
-        _ = try await request("/api/sync", method: "POST", body: JSONEncoder().encode(PushRequest(changes: SyncRecords(transactions: [old, moved]))), timeout: 15)
+        // A move succeeds or fails whole (no `partial`): the old space keeps it if the new one refuses it.
+        _ = try await request("/api/sync", method: "POST", body: JSONEncoder().encode(PushRequest(changes: SyncRecords(transactions: [old, moved]).clipped())), timeout: 15)
         m.update(from: moved)
         try? context.save()
     }
@@ -501,7 +500,7 @@ extension SyncService {
         old.deleted = 1; old.updated_at = now
         var moved = a.dto
         moved.space_id = Spaces.wire(space); moved.updated_at = now; moved.deleted = 0
-        _ = try await request("/api/sync", method: "POST", body: JSONEncoder().encode(PushRequest(changes: SyncRecords(accounts: [old, moved]))), timeout: 15)
+        _ = try await request("/api/sync", method: "POST", body: JSONEncoder().encode(PushRequest(changes: SyncRecords(accounts: [old, moved]).clipped())), timeout: 15)
         a.update(from: moved)
         try? context.save()
     }
