@@ -8,7 +8,7 @@ import SwiftUI
 
 @main
 struct HarinaApp: App {
-    static let refreshTask = "app.lzno.harina.sync"
+    nonisolated static let refreshTask = "app.lzno.harina.sync"
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var phase
     @StateObject private var lock = AppLock()
@@ -70,8 +70,9 @@ struct HarinaApp: App {
         }
     }
 
-    /// Asks iOS to wake harina now and then to push payments captured offline.
-    static func scheduleRefresh() {
+    /// Asks iOS to wake harina now and then to push payments captured offline. Not tied to the main
+    /// actor: the background refresh task calls it too (an error in the Swift 6 language mode).
+    nonisolated static func scheduleRefresh() {
         let req = BGAppRefreshTaskRequest(identifier: refreshTask)
         req.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         try? BGTaskScheduler.shared.submit(req)
