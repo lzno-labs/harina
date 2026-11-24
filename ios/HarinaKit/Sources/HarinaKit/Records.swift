@@ -189,6 +189,20 @@ public enum ISODate {
 
     public static func string(_ date: Date) -> String { withFraction.string(from: date) }
     public static func date(_ text: String) -> Date? { withFraction.date(from: text) ?? plain.date(from: text) }
+
+    /// The calendar day where the person is ("2026-11-20"), for goal dates. Not the UTC day: a date
+    /// picked in the evening in Costa Rica is already the next day in UTC.
+    public static func day(_ date: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// Noon of a "yyyy-MM-dd" day in the calendar's time zone, so no time zone moves it to another day.
+    public static func day(from text: String, calendar: Calendar = .current) -> Date? {
+        let parts = text.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12))
+    }
 }
 
 /// A space as the server lists it, with its members' names (docs/design/people-and-spaces.md).

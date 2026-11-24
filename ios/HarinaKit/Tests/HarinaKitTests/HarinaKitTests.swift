@@ -297,6 +297,20 @@ final class MoneyToolsTests: XCTestCase {
     }
 }
 
+final class DayTests: XCTestCase {
+    func testDayIsLocalNotUTC() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/Costa_Rica")!
+        // 2026-11-20 at 23:30 in Costa Rica is 2026-11-21 05:30 UTC.
+        let evening = cal.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 23, minute: 30))!
+        XCTAssertEqual(ISODate.day(evening, calendar: cal), "2026-11-20")
+        XCTAssertTrue(ISODate.string(evening).hasPrefix("2026-11-21"))
+        let back = ISODate.day(from: "2027-03-01", calendar: cal)!
+        XCTAssertEqual(ISODate.day(back, calendar: cal), "2027-03-01")
+        XCTAssertNil(ISODate.day(from: "marzo", calendar: cal))
+    }
+}
+
 final class CaptureLogTests: XCTestCase {
     let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 

@@ -98,7 +98,7 @@
 "accounts.title" = "Tarjetas y cuentas";
 "accounts.name" = "Nombre de la cuenta";
 "accounts.card" = "Tarjeta que reporta el atajo (opcional)";
-"accounts.cardHint" = "Las cuentas de cada tarjeta se crean solas con el primer pago. Desliza para borrar.";
+"accounts.cardHint" = "Toca una cuenta para editarla. Las de cada tarjeta se crean solas con el primer pago.";
 "accounts.add" = "Agregar cuenta";
 
 "sync.pending" = "Pendiente de sincronizar";
@@ -453,7 +453,7 @@
 "budgets.amount" = "Tope del mes";
 "budgets.categories" = "Categorías que cuentan";
 "budgets.create" = "Crear sobre";
-"budgets.hint" = "Un sobre suma lo que gastas en el mes en sus categorías. Te avisamos al 80 % y al pasarte. Es del espacio que estás viendo.";
+"budgets.hint" = "Un sobre suma lo que gastas en el mes en sus categorías. Te avisamos al 80 % y al pasarte. Es del espacio que estás viendo. Toca uno para editarlo.";
 "pots.title" = "Ahorros";
 "pots.saving" = "Ahorro";
 "pots.withdrawal" = "Retiro de ahorro";
@@ -470,7 +470,7 @@
 "pots.withdrawPrompt %@" = "¿Cuánto sacas de «%@»?";
 "pots.payWith" = "Pagar con ahorros";
 "pots.notFromSavings" = "No, dinero del día a día";
-"pots.hint" = "Pasar plata a una bolsa no cuenta como gasto del mes. Un gasto pagado con ahorros sí cuenta y baja el saldo de la bolsa.";
+"pots.hint" = "Pasar plata a una bolsa no cuenta como gasto del mes. Un gasto pagado con ahorros sí cuenta y baja el saldo de la bolsa. Toca una para editarla.";
 "reminders.title" = "Recordatorios";
 "reminders.upcoming" = "Próximos pagos";
 "reminders.paid" = "Pagado este mes";
@@ -485,7 +485,7 @@
 "reminders.dayValue %lld" = "Día %lld de cada mes";
 "reminders.amountOptional" = "Monto (opcional)";
 "reminders.create" = "Crear recordatorio";
-"reminders.hint" = "Para pagos que Harina no ve, como la tarjeta o la luz. Te avisamos el día antes y el mismo día. «Ya pagué» te ayuda a anotarlo.";
+"reminders.hint" = "Para pagos que Harina no ve, como la tarjeta o la luz. Te avisamos el día antes y el mismo día. «Ya pagué» te ayuda a anotarlo. Toca uno para editarlo.";
 "alerts.title" = "Avisos";
 "alerts.fixedToggle" = "Cobros fijos del día siguiente";
 "alerts.reminderToggle" = "Recordatorios de pago";
@@ -541,6 +541,37 @@
 "form.savedExpense %@" = "Gasto guardado: %@";
 "form.savedIncome %@" = "Ingreso guardado: %@";
 "form.undo" = "Deshacer";
+
+/* Editing envelopes, savings pots, reminders and cards */
+"app.tapToEdit" = "Toca para editar";
+"budgets.edit" = "Editar sobre";
+"budgets.needName" = "Ponle un nombre al sobre.";
+"budgets.needAmount" = "Escribe el tope del mes, por ejemplo 150000.";
+"budgets.needCategories" = "Elige al menos una categoría.";
+"budgets.tooManyCategories" = "Un sobre puede tener hasta 20 categorías.";
+"budgets.thisMonth" = "Este mes";
+"budgets.nothingYet" = "Todavía no hay gastos en este sobre este mes.";
+"budgets.delete" = "Borrar sobre";
+"budgets.confirmDelete" = "¿Borrar este sobre? Tus movimientos no cambian.";
+"pots.edit" = "Editar bolsa";
+"pots.needName" = "Ponle un nombre a la bolsa.";
+"pots.badGoal" = "La meta debe ser un monto, por ejemplo 400000.";
+"pots.currencyLocked" = "La moneda no se puede cambiar porque la bolsa ya tiene movimientos.";
+"pots.history" = "Movimientos de la bolsa";
+"pots.noHistory" = "Todavía no hay depósitos ni retiros.";
+"pots.delete" = "Borrar bolsa";
+"pots.confirmDelete" = "¿Borrar esta bolsa? Sus depósitos y retiros quedan en tus movimientos.";
+"reminders.edit" = "Editar recordatorio";
+"reminders.needName" = "Escribe qué hay que pagar.";
+"reminders.categoryHint" = "El monto y la categoría se llenan solos cuando tocas «Ya pagué».";
+"reminders.paidThisMonth" = "Pagado este mes";
+"reminders.paidHint" = "Apágalo si tocaste «Ya pagué» por error: Harina te vuelve a avisar este mes.";
+"reminders.delete" = "Borrar recordatorio";
+"reminders.confirmDelete" = "¿Borrar este recordatorio?";
+"accounts.edit" = "Editar cuenta";
+"accounts.needName" = "Ponle un nombre a la cuenta.";
+"accounts.delete" = "Borrar cuenta";
+"accounts.confirmDelete" = "¿Borrar esta cuenta? Sus movimientos quedan sin cuenta.";
 
 /* Capture history: every run of the Apple Pay action, kept only on this iPhone (docs/design/capture-log.md) */
 "capturelog.title" = "Historial de capturas";
