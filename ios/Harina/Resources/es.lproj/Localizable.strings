@@ -610,3 +610,40 @@
 "capturelog.last %@" = "Última: %@";
 "capturelog.none" = "Sin capturas";
 "capturelog.footer" = "Para saber si un pago de Wallet llegó a Harina y por qué falta alguno.";
+
+/* Changes the server refused (docs/adr/0008-partial-push.md) */
+"rejected.title" = "Cambios sin enviar";
+"rejected.count %lld" = "Cambios sin enviar: %lld";
+"rejected.short %lld" = "Cambios sin enviar: %lld";
+"rejected.hint" = "El servidor no los aceptó. Todo lo demás se sincroniza bien. Toca para corregirlos.";
+"rejected.footer" = "Siguen guardados en este iPhone y se vuelven a enviar en cada sincronización. Corrígelos o bórralos para que dejen de aparecer aquí.";
+"rejected.missing" = "Ya no está en este iPhone";
+"rejected.entity.transactions" = "Movimiento";
+"rejected.entity.accounts" = "Cuenta";
+"rejected.entity.categories" = "Categoría";
+"rejected.entity.reminders" = "Recordatorio";
+"rejected.entity.budgets" = "Sobre";
+"rejected.entity.pots" = "Bolsa de ahorro";
+"rejected.entity.other" = "Dato";
+"rejected.reason.space" = "Es de un espacio en el que ya no estás. Bórralo o pídele a alguien del espacio que vuelva a invitarte.";
+"rejected.reason.entity" = "Tu servidor no reconoce este tipo de dato: hay que actualizar el servidor.";
+"rejected.reason.field" = "El servidor no aceptó «%@». Ábrelo y corrígelo.";
+"rejected.reason.other" = "El servidor no lo aceptó. Ábrelo y revísalo.";
+"rejected.field.merchant" = "Comercio";
+"rejected.field.note" = "Nota";
+"rejected.field.name" = "Nombre";
+"rejected.field.card" = "Tarjeta";
+"rejected.field.amount_minor" = "Monto";
+"rejected.field.currency" = "Moneda";
+"rejected.field.occurred_at" = "Fecha";
+"rejected.field.kind" = "Tipo";
+"rejected.field.category_ids" = "Categorías";
+"rejected.field.day_of_month" = "Día del mes";
+"rejected.field.goal_minor" = "Meta";
+"rejected.field.goal_date" = "Fecha de la meta";
+"rejected.field.key" = "Categoría sugerida";
+"rejected.field.icon" = "Ícono";
+"rejected.field.color" = "Color";
+"rejected.field.raw_amount" = "Monto original";
+"rejected.field.other" = "uno de sus datos";
+

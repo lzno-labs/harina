@@ -93,7 +93,7 @@ test("invalid records are rejected whole", async () => {
     tx({ occurred_at: "ayer" }),
     tx({ id: "../etc" }),
     tx({ merchant: "x".repeat(201) }),
-    tx({ updated_at: Date.now() + 3 * 86400000 }),
+    null,
   ]) {
     const r = await call("/api/sync", { method: "POST", body: { changes: { transactions: [tx({ id: "ok" }), bad] } }, headers: h });
     assert.equal(r.status, 400, JSON.stringify(bad));

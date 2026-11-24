@@ -135,11 +135,13 @@ export function validateRecord(entity, rec, now = Date.now()) {
   if (!fields) throw new ValidationError("invalid_entity", entity);
   if (!rec || typeof rec !== "object") throw new ValidationError("invalid_record", entity);
   if (typeof rec.id !== "string" || !ID.test(rec.id)) throw new ValidationError("invalid_record", `${entity}.id`);
-  if (!Number.isSafeInteger(rec.updated_at) || rec.updated_at < 0 || rec.updated_at > now + MAX_FUTURE_MS) {
+  if (!Number.isSafeInteger(rec.updated_at) || rec.updated_at < 0) {
     throw new ValidationError("invalid_record", `${entity}.updated_at`);
   }
   const deleted = rec.deleted ? 1 : 0;
-  const row = { id: rec.id, updated_at: rec.updated_at, deleted };
+  // A clock more than a day ahead would make its rows beat every later edit: they count as
+  // written now instead of being refused (docs/adr/0008-partial-push.md).
+  const row = { id: rec.id, updated_at: rec.updated_at > now + MAX_FUTURE_MS ? now : rec.updated_at, deleted };
   for (const f of fields) {
     // A tombstone keeps only what the table needs to stay valid.
     row[f[0]] = deleted && !f[2].required ? null : checkField(entity, f, rec[f[0]]);
@@ -175,29 +177,70 @@ function inSpaces(spaces) {
 
 const BUMP = { sql: "UPDATE meta SET value = value + 1 WHERE key = 'seq'", params: [] };
 
+/** The field a validation detail names: "transactions.note is required" gives "note". */
+function fieldOf(detail) {
+  const f = String(detail ?? "").split(" ")[0].split(".")[1];
+  return f || null;
+}
+
 /**
  * Applies pushed changes with last-writer-wins and returns the server's current version of
- * every pushed row, so a device whose change lost adopts the winner. A row goes to the space it
+ * every saved row, so a device whose change lost adopts the winner. A row goes to the space it
  * names, or to the person's personal space; a space the person is not in is refused.
+ *
+ * By default one invalid record refuses the whole push: the web saves one record at a time and
+ * shows the error. With `partial` (the iPhone's queue, docs/adr/0008-partial-push.md), records are
+ * grouped by entity and id, so a move (a tombstone and a copy with the same id) succeeds or fails
+ * whole; a group with an invalid record is left out and reported in `rejected`, and the rest is
+ * saved, so one bad record never blocks the others.
  * @param {import("./storage/db.js").Db} db
  * @param {Record<string, unknown[]>} changes
  * @param {{ spaces: string[], personal: string, userId: string }} who
+ * @param {{ partial?: boolean }} [options]
  */
-export async function push(db, changes, who, now = Date.now()) {
+export async function push(db, changes, who, now = Date.now(), { partial = false } = {}) {
   if (!changes || typeof changes !== "object") throw new ValidationError("invalid_changes");
-  const rows = [];
+  let count = 0;
   for (const [entity, list] of Object.entries(changes)) {
-    if (!ENTITIES[entity]) throw new ValidationError("invalid_entity", entity);
+    if (!ENTITIES[entity] && !partial) throw new ValidationError("invalid_entity", entity);
     if (!Array.isArray(list)) throw new ValidationError("invalid_changes", entity);
+    count += list.length;
+  }
+  if (count > MAX_PUSH) throw new ValidationError("too_many_records");
+  /** @type {Map<string, { entity: string, id: string, rows: any[], refused: object | null }>} */
+  const groups = new Map();
+  for (const [entity, list] of Object.entries(changes)) {
     for (const rec of list) {
-      const space = rec?.space_id ?? who.personal;
-      if (typeof space !== "string" || !who.spaces.includes(space)) throw new ValidationError("invalid_space", `${entity}.space_id`);
-      // Moving a movement to another space keeps who added it, if that person is in the space too.
-      const by = typeof rec.created_by === "string" && rec.created_by !== who.userId && (await isMember(db, space, rec.created_by)) ? rec.created_by : who.userId;
-      rows.push([entity, { ...validateRecord(entity, rec, now), space_id: space, created_by: by }]);
+      const id = typeof rec?.id === "string" ? rec.id : "";
+      const key = `${entity}\u0000${id}`;
+      if (!groups.has(key)) groups.set(key, { entity, id, rows: [], refused: null });
+      const group = groups.get(key);
+      try {
+        if (!ENTITIES[entity]) throw new ValidationError("invalid_entity", entity);
+        const space = rec?.space_id ?? who.personal;
+        if (typeof space !== "string" || !who.spaces.includes(space)) throw new ValidationError("invalid_space", `${entity}.space_id`);
+        const row = validateRecord(entity, rec, now);
+        // Moving a movement to another space keeps who added it, if that person is in the space too.
+        const by = typeof rec.created_by === "string" && rec.created_by !== who.userId && (await isMember(db, space, rec.created_by)) ? rec.created_by : who.userId;
+        group.rows.push([entity, { ...row, space_id: space, created_by: by }]);
+      } catch (e) {
+        if (!partial || !(e instanceof ValidationError)) throw e;
+        group.refused ??= {
+          entity,
+          id,
+          space_id: typeof rec?.space_id === "string" ? rec.space_id : null,
+          error: e.code,
+          field: e.code === "invalid_record" ? fieldOf(e.detail) : null,
+        };
+      }
     }
   }
-  if (rows.length > MAX_PUSH) throw new ValidationError("too_many_records");
+  const rows = [];
+  const rejected = [];
+  for (const g of groups.values()) {
+    if (g.refused) rejected.push(g.refused);
+    else rows.push(...g.rows);
+  }
   if (rows.length) await db.batch(rows.flatMap(([e, r]) => [BUMP, upsertStatement(e, r)]));
   const out = {};
   for (const entity of Object.keys(ENTITIES)) {
@@ -207,7 +250,7 @@ export async function push(db, changes, who, now = Date.now()) {
       out[entity].push(await db.first(`SELECT * FROM ${entity} WHERE space_id = ? AND id = ?`, [r.space_id, r.id]));
     }
   }
-  return { seq: await currentSeq(db), records: out };
+  return partial ? { seq: await currentSeq(db), records: out, rejected } : { seq: await currentSeq(db), records: out };
 }
 
 export async function currentSeq(db) {
