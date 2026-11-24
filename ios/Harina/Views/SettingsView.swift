@@ -329,6 +329,19 @@ struct CaptureSettingsView: View {
                 NavigationLink("settings.automationHelp") { AutomationHelpView() }
             }
             Section {
+                NavigationLink { CaptureLogView() } label: {
+                    LabeledContent("capturelog.title") {
+                        if let last = CaptureLog.runs.first?.startedAt {
+                            Text("capturelog.last \(last.formatted(.relative(presentation: .named)))")
+                        } else {
+                            Text("capturelog.none")
+                        }
+                    }
+                }
+            } footer: {
+                Text("capturelog.footer")
+            }
+            Section {
                 Toggle("settings.notify", isOn: $notify)
                     .onChange(of: notify) { _, on in
                         if on { Task { await PaymentNotifier.requestPermission() } }
