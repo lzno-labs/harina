@@ -21,10 +21,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    # Xcode 27 and the iOS 27 SDK: from April 2027 App Store Connect only takes apps built with them
+    # (ITMS-90725). macos-latest still has Xcode 26; the xcode-27 image is its own label.
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - run: xcodebuild -version
       - name: HarinaKit tests
         run: swift test --package-path ios/HarinaKit
       - name: Generate the Xcode project
